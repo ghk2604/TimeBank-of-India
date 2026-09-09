@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import db, { checkpointDB } from '@/lib/db';
 import { checkAndExpireRequests, calculateCreditCost } from '@/lib/credits';
 
 export const dynamic = 'force-dynamic';
@@ -25,13 +25,16 @@ export async function GET(request: Request) {
 
     const requests = db.prepare(`
       SELECT r.*,
-             l.full_name as learner_name, l.avatar as learner_avatar,
-             t.full_name as teacher_name, t.avatar as teacher_avatar,
-             s.name as skill_name, s.category as skill_category
+             COALESCE(l.full_name, 'Learner') as learner_name,
+             COALESCE(l.avatar, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces') as learner_avatar,
+             COALESCE(t.full_name, 'Teacher') as teacher_name,
+             COALESCE(t.avatar, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces') as teacher_avatar,
+             COALESCE(s.name, 'Skill Exchange') as skill_name,
+             COALESCE(s.category, 'GENERAL') as skill_category
       FROM learning_requests r
-      JOIN users l ON r.learner_id = l.id
-      JOIN users t ON r.teacher_id = t.id
-      JOIN skills s ON r.skill_id = s.id
+      LEFT JOIN users l ON r.learner_id = l.id
+      LEFT JOIN users t ON r.teacher_id = t.id
+      LEFT JOIN skills s ON r.skill_id = s.id
       WHERE r.learner_id = ? OR r.teacher_id = ?
       ORDER BY r.created_at DESC
     `).all(userId, userId);
@@ -80,6 +83,9 @@ export async function POST(request: Request) {
       now.toISOString()
     );
 
+    // Flush WAL buffer to SQLite disk file
+    checkpointDB();
+
     return NextResponse.json({
       success: true,
       requestId: reqId,
@@ -97,11 +103,14 @@ export async function PUT(request: Request) {
     const { requestId, action } = body; // action: 'ACCEPT' | 'REJECT'
 
     const req = db.prepare(`
-      SELECT r.*, s.name as skill_name, l.full_name as learner_name, t.full_name as teacher_name
+      SELECT r.*,
+             COALESCE(s.name, 'Skill Exchange') as skill_name,
+             COALESCE(l.full_name, 'Learner') as learner_name,
+             COALESCE(t.full_name, 'Teacher') as teacher_name
       FROM learning_requests r
-      JOIN skills s ON r.skill_id = s.id
-      JOIN users l ON r.learner_id = l.id
-      JOIN users t ON r.teacher_id = t.id
+      LEFT JOIN skills s ON r.skill_id = s.id
+      LEFT JOIN users l ON r.learner_id = l.id
+      LEFT JOIN users t ON r.teacher_id = t.id
       WHERE r.id = ?
     `).get(requestId) as any;
 
@@ -146,6 +155,7 @@ export async function PUT(request: Request) {
       });
 
       acceptTx();
+      checkpointDB();
 
       return NextResponse.json({
         success: true,
@@ -170,6 +180,8 @@ export async function PUT(request: Request) {
         `Teacher ${req.teacher_name} is currently unavailable for "${req.skill_name}". You can explore other verified teachers anytime. Zero credits were debited.`,
         now
       );
+
+      checkpointDB();
 
       return NextResponse.json({
         success: true,

@@ -3,13 +3,15 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Check, X, Clock, Sparkles, UserCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import { Check, X, Clock, Sparkles, UserCheck, AlertCircle, ArrowRight, Eye } from 'lucide-react';
+import RequestReviewModal from '@/components/RequestReviewModal';
 
 export default function IncomingRequestBanner() {
   const { currentUser, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
 
   if (!pendingIncomingRequests || pendingIncomingRequests.length === 0) {
     return null;
@@ -93,6 +95,15 @@ export default function IncomingRequestBanner() {
             <span>{remainingHours}h {remainingMins}m left</span>
           </div>
 
+          {/* Action: Review Details */}
+          <button
+            onClick={() => setReviewModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-black/30 hover:bg-black/45 text-white font-bold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer text-xs"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Review Details</span>
+          </button>
+
           {/* Action: Immediate Accept */}
           <button
             onClick={handleAccept}
@@ -108,6 +119,7 @@ export default function IncomingRequestBanner() {
             onClick={handleDecline}
             disabled={processingId === currentReq.id}
             className="px-3 py-2 rounded-xl bg-black/20 hover:bg-black/40 text-white font-semibold transition-colors disabled:opacity-50"
+            title="Decline Request"
           >
             <X className="w-3.5 h-3.5" />
             <span className="sr-only">Decline</span>
@@ -148,6 +160,24 @@ export default function IncomingRequestBanner() {
         <div className="max-w-7xl mx-auto mt-1 p-2 rounded-lg bg-emerald-900/90 text-white text-xs font-bold text-center">
           🎉 {statusFeedback}
         </div>
+      )}
+
+      {/* Review Details Modal */}
+      {reviewModalOpen && currentReq && (
+        <RequestReviewModal
+          isOpen={reviewModalOpen}
+          request={currentReq}
+          onClose={() => setReviewModalOpen(false)}
+          onAccept={async (reqId) => {
+            await handleAccept();
+            setReviewModalOpen(false);
+          }}
+          onDecline={async (reqId) => {
+            await handleDecline();
+            setReviewModalOpen(false);
+          }}
+          isProcessing={processingId === currentReq.id}
+        />
       )}
     </div>
   );

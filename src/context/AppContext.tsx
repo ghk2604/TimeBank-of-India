@@ -5,6 +5,40 @@ import { Language, translations, TranslationStrings } from '@/lib/i18n';
 import { broadcastRequestEvent, subscribeToRequestEvents } from '@/lib/realtime';
 import confetti from 'canvas-confetti';
 
+export function playNotificationChime() {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const t0 = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, t0); // D5
+    gain1.gain.setValueAtTime(0.2, t0);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(t0);
+    osc1.stop(t0 + 0.28);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, t0 + 0.14); // A5
+    gain2.gain.setValueAtTime(0.25, t0 + 0.14);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(t0 + 0.14);
+    osc2.stop(t0 + 0.5);
+  } catch (e) {
+    // Silently ignore audio block
+  }
+}
+
 export interface CurrentUser {
   id: string;
   fullName: string;
@@ -143,6 +177,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingIncomingRequests, setPendingIncomingRequests] = useState<any[]>([]);
   const [acceptedModal, setAcceptedModal] = useState<AcceptedModalState | null>(null);
   const shownAcceptedIdsRef = useRef<Set<string>>(new Set());
+  const knownIncomingIdsRef = useRef<Set<string>>(new Set());
 
   const refreshRequests = useCallback(async (targetUserId?: string) => {
     const uid = targetUserId || currentUser?.id;
@@ -159,6 +194,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         setPendingIncomingRequests(incoming);
 
+        // Check for brand-new incoming request for this teacher
+        const newReqs = incoming.filter((r: any) => !knownIncomingIdsRef.current.has(r.id));
+        if (newReqs.length > 0) {
+          newReqs.forEach((r: any) => knownIncomingIdsRef.current.add(r.id));
+          if (typeof window !== 'undefined' && sessionStorage.getItem(`tbi_seen_init_${uid}`)) {
+            playNotificationChime();
+          }
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(`tbi_seen_init_${uid}`, 'true');
+          }
+        }
+
         // Fallback pop-up trigger: Check for newly accepted requests for learner
         const acceptedRequests = (data.requests || []).filter(
           (r: any) => r.learner_id === uid && r.status === 'ACCEPTED'
@@ -172,6 +219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (!alreadyAcked) {
             shownAcceptedIdsRef.current.add(req.id);
             try { sessionStorage.setItem(ackKey, 'true'); } catch (e) {}
+            playNotificationChime();
 
             fetch(`/api/sessions?userId=${uid}`, { cache: 'no-store' })
               .then(sRes => sRes.json())
@@ -264,9 +312,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshRequests(currentUser.id);
       refreshUserData(currentUser.id);
 
+      if (type === 'REQUEST_CREATED' && payload) {
+        if (currentUser?.id === payload.teacherId) {
+          playNotificationChime();
+        }
+      }
+
       if (type === 'REQUEST_ACCEPTED' && payload) {
         // Pop-up for the learner who requested the session
         if (currentUser?.id === payload.learnerId) {
+          playNotificationChime();
           if (payload.requestId) {
             shownAcceptedIdsRef.current.add(payload.requestId);
             try { sessionStorage.setItem(`tbi_ack_${payload.requestId}`, 'true'); } catch (e) {}
