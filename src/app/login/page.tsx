@@ -10,15 +10,13 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-import OtpAuthModal from '@/components/OtpAuthModal';
-
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'request-key' ? 'REQUEST_KEY' : searchParams.get('tab') === 'register' ? 'REGISTER' : searchParams.get('tab') === 'password' ? 'PASSWORD_LOGIN' : 'OTP_AUTH';
+  const initialTab = searchParams.get('tab') === 'request-key' ? 'REQUEST_KEY' : searchParams.get('tab') === 'register' ? 'REGISTER' : 'LOGIN';
 
   const { currentUser, setCurrentUser, refreshUserData } = useApp();
-  const [activeTab, setActiveTab] = useState<'OTP_AUTH' | 'PASSWORD_LOGIN' | 'REGISTER' | 'REQUEST_KEY'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'LOGIN' | 'REGISTER' | 'REQUEST_KEY'>(initialTab);
 
   // Login Form state
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -175,7 +173,7 @@ function LoginContent() {
           Access TimeBank of India 🇮🇳
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-          Verify with Mobile/Email OTP, sign in with password, or request an official early access key.
+          Sign in to your Time Wallet, create a new account with 1.0 free credit, or request an institutional key.
         </p>
       </div>
 
@@ -183,39 +181,30 @@ function LoginContent() {
       <div className="flex items-center justify-center">
         <div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-center gap-1.5">
           <button
-            onClick={() => { setActiveTab('OTP_AUTH'); setLoginError(null); }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'OTP_AUTH'
-                ? 'bg-gradient-to-r from-orange-500 to-green-600 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-            }`}
-          >
-            <Phone className="w-3.5 h-3.5" />
-            <span>OTP Verification</span>
-          </button>
-          <button
-            onClick={() => { setActiveTab('PASSWORD_LOGIN'); setLoginError(null); }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'PASSWORD_LOGIN'
+            onClick={() => { setActiveTab('LOGIN'); setLoginError(null); }}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'LOGIN'
                 ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
-            Password Sign In
+            <Lock className="w-3.5 h-3.5" />
+            <span>Sign In</span>
           </button>
           <button
             onClick={() => { setActiveTab('REGISTER'); setRegError(null); }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'REGISTER'
                 ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
             }`}
           >
-            Direct Register
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Register Account</span>
           </button>
           <button
             onClick={() => setActiveTab('REQUEST_KEY')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'REQUEST_KEY'
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -227,13 +216,8 @@ function LoginContent() {
         </div>
       </div>
 
-      {/* TAB 1: OTP VERIFICATION (DEFAULT) */}
-      {activeTab === 'OTP_AUTH' && (
-        <OtpAuthModal isPageMode={true} onSuccess={() => router.push('/dashboard')} />
-      )}
-
-      {/* TAB 2: PASSWORD / DEMO SIGN IN */}
-      {activeTab === 'PASSWORD_LOGIN' && (
+      {/* TAB 1: SIGN IN */}
+      {activeTab === 'LOGIN' && (
         <div className="max-w-md mx-auto p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
           <div>
             <h2 className="text-lg font-black text-slate-900 dark:text-white">Sign In to Your Account</h2>

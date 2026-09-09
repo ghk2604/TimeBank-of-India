@@ -137,7 +137,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Check authentication state
     const savedAuth = localStorage.getItem('tbi_is_authenticated');
     const savedUser = localStorage.getItem('tbi_user');
-    const dismissedGuest = sessionStorage.getItem('tbi_guest_browse');
 
     if (savedAuth === 'true' && savedUser) {
       try {
@@ -146,14 +145,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsLoggedIn(true);
       } catch (e) {
         setIsLoggedIn(false);
-        if (!dismissedGuest) setShowAuthModal(true);
       }
     } else {
-      // First-time or unauthenticated visitor: show Login / Register OTP view on website load
       setIsLoggedIn(false);
-      if (!dismissedGuest) {
-        setShowAuthModal(true);
-      }
     }
 
     refreshUserData();
@@ -170,7 +164,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowAuthModal(false);
     localStorage.setItem('tbi_is_authenticated', 'true');
     localStorage.setItem('tbi_user', JSON.stringify(user));
-    sessionStorage.removeItem('tbi_guest_browse');
   };
 
   const logout = () => {
@@ -178,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('tbi_is_authenticated');
     localStorage.removeItem('tbi_user');
     setCurrentUserState(DEMO_USERS[0]);
-    setShowAuthModal(true);
+    setShowAuthModal(false);
   };
 
   const setCurrentUser = (user: CurrentUser) => {
