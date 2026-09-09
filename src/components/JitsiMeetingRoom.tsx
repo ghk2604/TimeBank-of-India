@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
-  Video, Mic, MicOff, VideoOff, PhoneOff, Maximize2, Minimize2, 
-  Sparkles, ShieldCheck, Users, Radio, ArrowRight, RotateCcw, AlertCircle
+  Video, PhoneOff, Maximize2, Minimize2, ShieldCheck, 
+  Radio, RotateCcw, AlertCircle, Sparkles, ExternalLink
 } from 'lucide-react';
 import { getJitsiRoomName, getJitsiDomain, JITSI_TOOLBAR_BUTTONS } from '@/lib/jitsi';
 
@@ -27,12 +27,11 @@ export default function JitsiMeetingRoom({
   const containerRef = useRef<HTMLDivElement>(null);
   const jitsiApiRef = useRef<any>(null);
 
-  const [callState, setCallState] = useState<'idle' | 'loading' | 'joined' | 'ended'>(
-    autoJoin ? 'loading' : 'idle'
-  );
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [apiReady, setApiReady] = useState(false);
-  const [participantCount, setParticipantCount] = useState(1);
+  // States: 'idle' | 'active' | 'ended'
+  const [isCallActive, setIsCallActive] = useState<boolean>(autoJoin);
+  const [isCallEnded, setIsCallEnded] = useState<boolean>(false);
+  const [isIframeReady, setIsIframeReady] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isTeacher = session?.teacher_id === currentUser?.id;
@@ -42,149 +41,20 @@ export default function JitsiMeetingRoom({
   const roomName = getJitsiRoomName(session?.id);
   const domain = getJitsiDomain();
 
-  // 1. Ensure external_api.js is loaded
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    if ((window as any).JitsiMeetExternalAPI) {
-      setApiReady(true);
-      return;
-    }
-
-    const existingScript = document.getElementById('jitsi-external-api-script');
-    if (existingScript) {
-      existingScript.addEventListener('load', () => setApiReady(true));
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = 'jitsi-external-api-script';
-    script.src = `https://${domain}/external_api.js`;
-    script.async = true;
-    script.onload = () => setApiReady(true);
-    script.onerror = () => {
-      setErrorMessage('Could not load Jitsi Meet library. Please check your internet connection.');
-    };
-    document.body.appendChild(script);
-  }, [domain]);
-
-  // 2. Start Jitsi Call
-  const startMeeting = () => {
-    setCallState('loading');
-    setErrorMessage(null);
-  };
-
-  // 3. Initialize Jitsi API once state is loading and container is available
-  useEffect(() => {
-    if (callState !== 'loading') return;
-    if (!apiReady || !(window as any).JitsiMeetExternalAPI) return;
-    if (!containerRef.current) return;
-
-    // Clean up any previous instance
+  const handleEndCall = useCallback(() => {
     if (jitsiApiRef.current) {
       try {
         jitsiApiRef.current.dispose();
       } catch (e) {
-        console.warn('Error disposing previous Jitsi instance', e);
+        console.warn('Error disposing Jitsi API:', e);
       }
       jitsiApiRef.current = null;
     }
-
-    // Clear inner container
-    containerRef.current.innerHTML = '';
-
-    try {
-      const options = {
-        roomName: roomName,
-        parentNode: containerRef.current,
-        width: '100%',
-        height: '100%',
-        userInfo: {
-          displayName: currentUser?.fullName || currentUser?.username || (isTeacher ? 'Teacher' : 'Learner'),
-          email: currentUser?.email || '',
-        },
-        configOverwrite: {
-          startWithAudioMuted: false,
-          startWithVideoMuted: false,
-          prejoinPageEnabled: false,
-          disableDeepLinking: true,
-          enableWelcomePage: false,
-          enableClosePage: false,
-          p2p: { enabled: true },
-          resolution: 720,
-        },
-        interfaceConfigOverwrite: {
-          TOOLBAR_BUTTONS: JITSI_TOOLBAR_BUTTONS,
-          SHOW_JITSI_WATERMARK: false,
-          SHOW_WATERMARK_FOR_GUESTS: false,
-          SHOW_POWERED_BY: false,
-          DEFAULT_REMOTE_DISPLAY_NAME: counterpartyName || 'Participant',
-        },
-      };
-
-      const api = new (window as any).JitsiMeetExternalAPI(domain, options);
-      jitsiApiRef.current = api;
-
-      api.addListener('videoConferenceJoined', () => {
-        setCallState('joined');
-        setParticipantCount(1);
-      });
-
-      api.addListener('participantJoined', () => {
-        setParticipantCount((prev) => prev + 1);
-      });
-
-      api.addListener('participantLeft', () => {
-        setParticipantCount((prev) => Math.max(1, prev - 1));
-      });
-
-      api.addListener('readyToClose', () => {
-        handleEndCall();
-      });
-
-      api.addListener('videoConferenceLeft', () => {
-        handleEndCall();
-      });
-    } catch (err: any) {
-      console.error('Failed to initialize Jitsi Meet:', err);
-      setErrorMessage(err.message || 'Failed to initialize video call.');
-      setCallState('idle');
-    }
-  }, [callState, apiReady, roomName, domain]);
-
-  // Handle auto-join trigger
-  useEffect(() => {
-    if (autoJoin && apiReady && callState === 'idle') {
-      startMeeting();
-    }
-  }, [autoJoin, apiReady]);
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (jitsiApiRef.current) {
-        try {
-          jitsiApiRef.current.dispose();
-        } catch (e) {
-          // ignore cleanup errors
-        }
-        jitsiApiRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleEndCall = () => {
-    if (jitsiApiRef.current) {
-      try {
-        jitsiApiRef.current.dispose();
-      } catch (e) {
-        // ignore
-      }
-      jitsiApiRef.current = null;
-    }
-    setCallState('ended');
+    setIsCallActive(false);
+    setIsCallEnded(true);
+    setIsIframeReady(false);
     if (onEndCall) onEndCall();
-  };
+  }, [onEndCall]);
 
   const triggerHangup = () => {
     if (jitsiApiRef.current) {
@@ -198,7 +68,146 @@ export default function JitsiMeetingRoom({
     }
   };
 
-  const toggleContainerFullscreen = () => {
+  // Start Meeting handler
+  const startMeeting = () => {
+    setIsCallEnded(false);
+    setIsCallActive(true);
+    setIsIframeReady(false);
+    setErrorMessage(null);
+  };
+
+  // Initialize Jitsi Meet when isCallActive is true
+  useEffect(() => {
+    if (!isCallActive) return;
+
+    let isSubscribed = true;
+
+    const initJitsi = () => {
+      if (!containerRef.current || !isSubscribed) return;
+
+      // Clean up previous instance if any
+      if (jitsiApiRef.current) {
+        try {
+          jitsiApiRef.current.dispose();
+        } catch (e) {}
+        jitsiApiRef.current = null;
+      }
+      containerRef.current.innerHTML = '';
+
+      const userName = currentUser?.fullName || currentUser?.username || (isTeacher ? 'Teacher' : 'Learner');
+      const userEmail = currentUser?.email || '';
+
+      if ((window as any).JitsiMeetExternalAPI) {
+        try {
+          const options = {
+            roomName: roomName,
+            parentNode: containerRef.current,
+            width: '100%',
+            height: '100%',
+            userInfo: {
+              displayName: userName,
+              email: userEmail,
+            },
+            configOverwrite: {
+              startWithAudioMuted: false,
+              startWithVideoMuted: false,
+              prejoinPageEnabled: false,
+              disableDeepLinking: true,
+              enableWelcomePage: false,
+              enableClosePage: false,
+              p2p: { enabled: true },
+              resolution: 720,
+              channelLastN: -1,
+            },
+            interfaceConfigOverwrite: {
+              TOOLBAR_BUTTONS: JITSI_TOOLBAR_BUTTONS,
+              SHOW_JITSI_WATERMARK: false,
+              SHOW_WATERMARK_FOR_GUESTS: false,
+              SHOW_POWERED_BY: false,
+              DEFAULT_REMOTE_DISPLAY_NAME: counterpartyName || 'Participant',
+            },
+          };
+
+          const api = new (window as any).JitsiMeetExternalAPI(domain, options);
+          jitsiApiRef.current = api;
+
+          api.addListener('videoConferenceJoined', () => {
+            if (isSubscribed) setIsIframeReady(true);
+          });
+
+          api.addListener('readyToClose', () => {
+            if (isSubscribed) handleEndCall();
+          });
+
+          api.addListener('videoConferenceLeft', () => {
+            if (isSubscribed) handleEndCall();
+          });
+
+          // Safety timeout: dismiss loading overlay after 3 seconds even if event is delayed
+          setTimeout(() => {
+            if (isSubscribed) setIsIframeReady(true);
+          }, 3000);
+
+        } catch (err: any) {
+          console.error('Error instantiating Jitsi Meet:', err);
+          if (isSubscribed) {
+            loadDirectIframeFallback();
+          }
+        }
+      } else {
+        // Load external_api.js script
+        const existingScript = document.getElementById('jitsi-external-api-script');
+        if (existingScript) {
+          existingScript.onload = () => {
+            if (isSubscribed) initJitsi();
+          };
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.id = 'jitsi-external-api-script';
+        script.src = `https://${domain}/external_api.js`;
+        script.async = true;
+        script.onload = () => {
+          if (isSubscribed) initJitsi();
+        };
+        script.onerror = () => {
+          console.warn('Could not load external_api.js, switching to direct iframe fallback');
+          if (isSubscribed) loadDirectIframeFallback();
+        };
+        document.body.appendChild(script);
+      }
+    };
+
+    // Direct fallback if external script fails
+    const loadDirectIframeFallback = () => {
+      if (!containerRef.current || !isSubscribed) return;
+      containerRef.current.innerHTML = '';
+      const userName = encodeURIComponent(currentUser?.fullName || currentUser?.username || 'User');
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://${domain}/${roomName}#userInfo.displayName="${userName}"&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      iframe.allow = 'camera; microphone; fullscreen; display-capture; autoplay; clipboard-write';
+      containerRef.current.appendChild(iframe);
+      setIsIframeReady(true);
+    };
+
+    initJitsi();
+
+    return () => {
+      isSubscribed = false;
+      if (jitsiApiRef.current) {
+        try {
+          jitsiApiRef.current.dispose();
+        } catch (e) {}
+        jitsiApiRef.current = null;
+      }
+    };
+  }, [isCallActive, roomName, domain, counterpartyName, currentUser, isTeacher, handleEndCall]);
+
+  const toggleFullscreen = () => {
     const el = containerRef.current?.parentElement;
     if (!el) return;
 
@@ -214,20 +223,17 @@ export default function JitsiMeetingRoom({
   return (
     <div className="w-full space-y-3">
       {/* 1. LOBBY STATE (Before Joining) */}
-      {callState === 'idle' && (
+      {!isCallActive && !isCallEnded && (
         <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700 shadow-xl relative overflow-hidden">
-          {/* Ambient Lighting */}
           <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/20 blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
 
           <div className="max-w-xl mx-auto text-center space-y-6 relative z-10">
-            {/* Header Badge */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/30">
               <ShieldCheck className="w-4 h-4" />
               <span>Jitsi Meet Secure 1-on-1 Video Room</span>
             </div>
 
-            {/* Title */}
             <div>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
                 {session?.skill_name || '1-on-1 Learning Session'}
@@ -296,33 +302,15 @@ export default function JitsiMeetingRoom({
         </div>
       )}
 
-      {/* 2. LOADING STATE */}
-      {callState === 'loading' && (
-        <div className="h-[540px] sm:h-[600px] w-full rounded-3xl bg-slate-900 border border-slate-700 flex flex-col items-center justify-center text-white space-y-4 shadow-xl">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full border-4 border-emerald-500/30 border-t-emerald-500 animate-spin" />
-            <Video className="w-7 h-7 text-emerald-400 absolute inset-0 m-auto" />
-          </div>
-          <div className="text-center space-y-1">
-            <h3 className="text-base font-bold">Connecting to Private Meeting Room...</h3>
-            <p className="text-xs text-slate-400">
-              Initializing camera, microphone, and Jitsi Meet bridge for {counterpartyName}
-            </p>
-          </div>
-          {/* Mount point for API creation */}
-          <div ref={containerRef} className="hidden" />
-        </div>
-      )}
-
-      {/* 3. ACTIVE LIVE CALL STATE */}
-      {callState === 'joined' && (
+      {/* 2. ACTIVE LIVE CALL STATE (Always Visible when Active) */}
+      {isCallActive && (
         <div className="rounded-3xl bg-slate-950 border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
           {/* Live Call Control Bar */}
           <div className="px-4 sm:px-6 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-800">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>LIVE • 2-Way Jitsi Call</span>
+                <span>LIVE • Jitsi 2-Way Video & Audio</span>
               </div>
               <span className="hidden md:inline text-xs text-slate-300 font-medium truncate max-w-xs">
                 {session?.skill_name} with {counterpartyName}
@@ -332,7 +320,7 @@ export default function JitsiMeetingRoom({
             <div className="flex items-center gap-2">
               {/* Fullscreen Toggle */}
               <button
-                onClick={toggleContainerFullscreen}
+                onClick={toggleFullscreen}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                 title="Toggle Fullscreen"
               >
@@ -352,16 +340,34 @@ export default function JitsiMeetingRoom({
             </div>
           </div>
 
-          {/* Embedded Jitsi Meeting Iframe Container */}
-          <div
-            ref={containerRef}
-            className="w-full h-[540px] sm:h-[620px] bg-black relative"
-          />
+          {/* Embedded Jitsi Meeting Iframe Container (Always Mounted & Visible) */}
+          <div className="relative w-full h-[560px] sm:h-[640px] bg-black">
+            <div
+              ref={containerRef}
+              className="w-full h-full"
+            />
+
+            {/* Subtle Non-blocking Connecting Spinner (Fades out when ready) */}
+            {!isIframeReady && (
+              <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center text-white space-y-4 z-10 pointer-events-none transition-opacity duration-300">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-full border-4 border-emerald-500/30 border-t-emerald-500 animate-spin" />
+                  <Video className="w-6 h-6 text-emerald-400 absolute inset-0 m-auto" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-sm font-bold">Connecting to Private Meeting Room...</h3>
+                  <p className="text-xs text-slate-400">
+                    Connecting camera, microphone, and audio bridge for {counterpartyName}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* 4. ENDED STATE (Call Concluded) */}
-      {callState === 'ended' && (
+      {/* 3. ENDED STATE (Call Concluded) */}
+      {isCallEnded && (
         <div className="p-8 sm:p-10 rounded-3xl bg-slate-900 text-white border border-slate-700 shadow-xl text-center space-y-5">
           <div className="w-16 h-16 rounded-full bg-slate-800 text-slate-300 mx-auto flex items-center justify-center border border-slate-700 shadow-inner">
             <PhoneOff className="w-8 h-8 text-rose-400" />
@@ -396,7 +402,7 @@ export default function JitsiMeetingRoom({
         </div>
       )}
 
-      {/* Error Alert if Jitsi Fails to Load */}
+      {/* Error Alert if Jitsi Fails */}
       {errorMessage && (
         <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
