@@ -1,7 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Language, translations, TranslationStrings } from '@/lib/i18n';
+import { broadcastRequestEvent, subscribeToRequestEvents } from '@/lib/realtime';
+import confetti from 'canvas-confetti';
 
 export interface CurrentUser {
   id: string;
@@ -34,6 +36,12 @@ interface AppContextType {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   refreshUserData: () => Promise<void>;
+
+  // Real-time Requests & Instant Acceptance
+  pendingIncomingRequests: any[];
+  refreshRequests: (targetUserId?: string) => Promise<void>;
+  acceptSessionRequest: (requestId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  declineSessionRequest: (requestId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
 }
 
 export const DEMO_USERS: CurrentUser[] = [
@@ -118,6 +126,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
+  const [pendingIncomingRequests, setPendingIncomingRequests] = useState<any[]>([]);
+
+  const refreshRequests = useCallback(async (targetUserId?: string) => {
+    const uid = targetUserId || currentUser.id;
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/requests?userId=${uid}`, {
+        headers: { 'Cache-Control': 'no-cache' },
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const incoming = (data.requests || []).filter(
+          (r: any) => r.teacher_id === uid && r.status === 'PENDING'
+        );
+        setPendingIncomingRequests(incoming);
+      }
+    } catch (e) {
+      // Silently catch background poll error
+    }
+  }, [currentUser.id]);
+
   useEffect(() => {
     // Check local storage or system preference
     const savedLang = localStorage.getItem('tbi_lang') as Language;
@@ -153,6 +183,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     refreshUserData();
   }, []);
 
+  // Real-time synchronization & fast polling
+  useEffect(() => {
+    refreshRequests(currentUser.id);
+    refreshUserData();
+
+    // 2.5 second live background polling for immediate request discovery
+    const intervalId = setInterval(() => {
+      refreshRequests(currentUser.id);
+      refreshUserData();
+    }, 2500);
+
+    // Instant cross-tab & local real-time event listener
+    const unsubscribe = subscribeToRequestEvents(() => {
+      refreshRequests(currentUser.id);
+      refreshUserData();
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      unsubscribe();
+    };
+  }, [currentUser.id, refreshRequests]);
+
   const setLang = (newLang: Language) => {
     setLangState(newLang);
     localStorage.setItem('tbi_lang', newLang);
@@ -164,6 +217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setShowAuthModal(false);
     localStorage.setItem('tbi_is_authenticated', 'true');
     localStorage.setItem('tbi_user', JSON.stringify(user));
+    refreshRequests(user.id);
   };
 
   const logout = () => {
@@ -172,6 +226,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('tbi_user');
     setCurrentUserState(DEMO_USERS[0]);
     setShowAuthModal(false);
+    setPendingIncomingRequests([]);
   };
 
   const setCurrentUser = (user: CurrentUser) => {
@@ -179,6 +234,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(true);
     localStorage.setItem('tbi_is_authenticated', 'true');
     localStorage.setItem('tbi_user', JSON.stringify(user));
+    refreshRequests(user.id);
   };
 
   const toggleDarkMode = () => {
@@ -197,7 +253,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUserData = async () => {
     try {
-      const res = await fetch(`/api/users/${currentUser.id}`);
+      const res = await fetch(`/api/users/${currentUser.id}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.user && data.wallet) {
@@ -211,6 +267,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       // Fallback to local state
+    }
+  };
+
+  const acceptSessionRequest = async (requestId: string) => {
+    // Optimistic removal from pending list
+    setPendingIncomingRequests(prev => prev.filter(r => r.id !== requestId));
+    try {
+      const res = await fetch('/api/requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, action: 'ACCEPT' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+        broadcastRequestEvent('REQUEST_ACCEPTED', { requestId, teacherId: currentUser.id });
+        await refreshRequests(currentUser.id);
+        await refreshUserData();
+        return { success: true, message: data.message || 'Session accepted and scheduled successfully!' };
+      } else {
+        await refreshRequests(currentUser.id);
+        return { success: false, error: data.error || 'Failed to accept session' };
+      }
+    } catch (err: any) {
+      await refreshRequests(currentUser.id);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const declineSessionRequest = async (requestId: string) => {
+    setPendingIncomingRequests(prev => prev.filter(r => r.id !== requestId));
+    try {
+      const res = await fetch('/api/requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, action: 'REJECT' }),
+      });
+      const data = await res.json();
+      broadcastRequestEvent('REQUEST_REJECTED', { requestId, teacherId: currentUser.id });
+      await refreshRequests(currentUser.id);
+      return { success: true, message: 'Session request declined.' };
+    } catch (err: any) {
+      await refreshRequests(currentUser.id);
+      return { success: false, error: err.message };
     }
   };
 
@@ -229,7 +329,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setShowAuthModal,
         isDarkMode,
         toggleDarkMode,
-        refreshUserData
+        refreshUserData,
+        pendingIncomingRequests,
+        refreshRequests,
+        acceptSessionRequest,
+        declineSessionRequest,
       }}
     >
       {children}

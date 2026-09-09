@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
+import { subscribeToRequestEvents } from '@/lib/realtime';
 import { 
   Coins, Clock, BookOpen, Award, CheckCircle2, XCircle, AlertTriangle, 
   Flame, PlusCircle, ArrowUpRight, ArrowDownRight, Compass, ShieldCheck, 
@@ -10,7 +11,7 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { currentUser, refreshUserData } = useApp();
+  const { currentUser, refreshUserData, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
   const [activeTab, setActiveTab] = useState<'LEARNER' | 'TEACHER'>('LEARNER');
   const [userData, setUserData] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
@@ -23,10 +24,10 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const [uRes, rRes, sRes, wRes] = await Promise.all([
-        fetch(`/api/users/${currentUser.id}`),
-        fetch(`/api/requests?userId=${currentUser.id}`),
-        fetch(`/api/sessions?userId=${currentUser.id}`),
-        fetch(`/api/wallet?userId=${currentUser.id}`),
+        fetch(`/api/users/${currentUser.id}`, { cache: 'no-store' }),
+        fetch(`/api/requests?userId=${currentUser.id}`, { cache: 'no-store' }),
+        fetch(`/api/sessions?userId=${currentUser.id}`, { cache: 'no-store' }),
+        fetch(`/api/wallet?userId=${currentUser.id}`, { cache: 'no-store' }),
       ]);
 
       const uData = await uRes.json();
@@ -38,6 +39,14 @@ export default function DashboardPage() {
       setRequests(rData.requests || []);
       setSessions(sData.sessions || []);
       setRecovery(wData.recovery);
+
+      // If user has pending incoming requests as teacher, prioritize Teacher Mode
+      const pendingTeacherReqs = (rData.requests || []).filter(
+        (r: any) => r.teacher_id === currentUser.id && r.status === 'PENDING'
+      );
+      if (pendingTeacherReqs.length > 0) {
+        setActiveTab('TEACHER');
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -47,32 +56,48 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData();
+
+    // 2.5s live polling for instant incoming requests
+    const interval = setInterval(loadData, 2500);
+
+    // Instant cross-tab & local real-time event listener
+    const unsubscribe = subscribeToRequestEvents(() => {
+      loadData();
+      refreshUserData();
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [currentUser.id]);
 
   const handleRequestAction = async (requestId: string, action: 'ACCEPT' | 'REJECT') => {
-    try {
-      const res = await fetch('/api/requests', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId, action }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setActionMessage(data.message);
+    if (action === 'ACCEPT') {
+      const res = await acceptSessionRequest(requestId);
+      if (res.success) {
+        setActionMessage(res.message || 'Session Accepted!');
         loadData();
         refreshUserData();
         setTimeout(() => setActionMessage(null), 4000);
       } else {
-        alert(data.error);
+        alert(res.error || 'Failed to accept session');
       }
-    } catch (e: any) {
-      alert(e.message);
+    } else {
+      const res = await declineSessionRequest(requestId);
+      if (res.success) {
+        setActionMessage(res.message || 'Session Declined');
+        loadData();
+        refreshUserData();
+        setTimeout(() => setActionMessage(null), 4000);
+      }
     }
   };
 
   // Filter requests based on perspective
   const incomingTeacherRequests = requests.filter(r => r.teacher_id === currentUser.id);
   const outgoingLearnerRequests = requests.filter(r => r.learner_id === currentUser.id);
+  const pendingIncomingTeacherRequests = incomingTeacherRequests.filter(r => r.status === 'PENDING');
 
   // Filter sessions
   const teachingSessions = sessions.filter(s => s.teacher_id === currentUser.id);
@@ -125,6 +150,11 @@ export default function DashboardPage() {
           >
             <UserCheck className="w-3.5 h-3.5" />
             <span>Teacher Mode</span>
+            {pendingIncomingTeacherRequests.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                {pendingIncomingTeacherRequests.length} New
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -134,6 +164,88 @@ export default function DashboardPage() {
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-medium flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{actionMessage}</span>
+        </div>
+      )}
+
+      {/* TOP-LEVEL INSTANT ACCEPTANCE BANNER (Visible in BOTH Learner and Teacher Mode) */}
+      {pendingIncomingTeacherRequests.length > 0 && (
+        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-emerald-500/15 border-2 border-orange-400 dark:border-orange-600 shadow-md space-y-4 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 font-black text-sm">
+              <span className="flex h-3 w-3 rounded-full bg-orange-500 animate-ping shrink-0" />
+              <span>⚡ ACTION REQUIRED: You Have {pendingIncomingTeacherRequests.length} Incoming Session Request(s)!</span>
+            </div>
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-800/70 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+              Strict 24-Hour Response Rule
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {pendingIncomingTeacherRequests.map((req) => {
+              const deadline = new Date(req.response_deadline).getTime();
+              const now = Date.now();
+              const remainingHours = Math.max(0, Math.floor((deadline - now) / (1000 * 3600)));
+              const remainingMins = Math.max(0, Math.floor(((deadline - now) % (1000 * 3600)) / (1000 * 60)));
+
+              return (
+                <div
+                  key={req.id}
+                  className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <img
+                      src={req.learner_avatar}
+                      alt={req.learner_name}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-orange-300 dark:border-slate-600 shrink-0 mt-0.5"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">{req.learner_name}</h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-300">
+                          {req.skill_name}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                          Earns +{req.credit_cost} Time Credit
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-medium mt-1">
+                        Goal: &quot;{req.learning_goal}&quot;
+                      </p>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        <span>📅 {req.preferred_date}</span>
+                        <span>⏰ {req.preferred_time}</span>
+                        <span>⏱️ {req.duration} mins</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row md:flex-col items-end gap-2.5 shrink-0">
+                    <div className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 animate-spin" />
+                      <span>{remainingHours}h {remainingMins}m remaining</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRequestAction(req.id, 'ACCEPT')}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md flex items-center gap-1.5 hover:scale-105 transition-all cursor-pointer"
+                      >
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>Accept Session Now ✓</span>
+                      </button>
+                      <button
+                        onClick={() => handleRequestAction(req.id, 'REJECT')}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Decline</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

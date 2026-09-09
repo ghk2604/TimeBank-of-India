@@ -6,15 +6,19 @@ import { usePathname } from 'next/navigation';
 import { useApp, DEMO_USERS } from '@/context/AppContext';
 import { 
   Coins, Moon, Sun, Globe, User, ShieldAlert, BookOpen, Compass, 
-  Award, Wallet, GitPullRequest, Search, Zap, Layers, Menu, X, CheckCircle2, Key
+  Award, Wallet, GitPullRequest, Search, Zap, Layers, Menu, X, CheckCircle2, Key, Bell, Check
 } from 'lucide-react';
 
 export default function Navbar() {
-  const { lang, setLang, t, currentUser, setCurrentUser, isLoggedIn, logout, isDarkMode, toggleDarkMode } = useApp();
+  const { 
+    lang, setLang, t, currentUser, setCurrentUser, isLoggedIn, logout, 
+    isDarkMode, toggleDarkMode, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest 
+  } = useApp();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
 
   const navLinks = [
     { href: '/', label: t.nav.home, icon: BookOpen },
@@ -100,11 +104,115 @@ export default function Navbar() {
             {/* Direct Login & Registration Link */}
             <Link
               href="/login"
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-green-600 hover:from-orange-600 hover:to-green-700 text-white text-xs font-bold shadow-sm hover:scale-105 transition-all"
+              className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-green-600 hover:from-orange-600 hover:to-green-700 text-white text-xs font-bold shadow-sm hover:scale-105 transition-all"
             >
               <User className="w-3.5 h-3.5" />
               <span>Sign In / Register</span>
             </Link>
+
+            {/* Instant Notification Bell & Incoming Requests Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setNotifDropdownOpen(!notifDropdownOpen);
+                  setUserDropdownOpen(false);
+                  setLangDropdownOpen(false);
+                }}
+                className={`relative p-2 rounded-full transition-colors ${
+                  pendingIncomingRequests.length > 0
+                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 hover:bg-amber-200'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Notifications & Session Requests"
+              >
+                <Bell className="w-4 h-4" />
+                {pendingIncomingRequests.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow animate-bounce">
+                    {pendingIncomingRequests.length}
+                  </span>
+                )}
+              </button>
+
+              {notifDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>Incoming Requests</span>
+                        {pendingIncomingRequests.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                            {pendingIncomingRequests.length} Active
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-[10px] text-slate-400">Respond within 24 hours</p>
+                    </div>
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setNotifDropdownOpen(false)}
+                      className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline"
+                    >
+                      View All
+                    </Link>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                    {pendingIncomingRequests.length > 0 ? (
+                      pendingIncomingRequests.map((req) => (
+                        <div key={req.id} className="p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors space-y-2">
+                          <div className="flex items-start gap-2.5">
+                            <img
+                              src={req.learner_avatar}
+                              alt={req.learner_name}
+                              className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {req.learner_name}
+                              </p>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                                Wants to learn: <span className="text-orange-600 dark:text-orange-400 font-bold">{req.skill_name}</span>
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                {req.duration} mins • Earns +{req.credit_cost} Time Credit
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={async () => {
+                                await acceptSessionRequest(req.id);
+                                setNotifDropdownOpen(false);
+                              }}
+                              className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Accept Session</span>
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await declineSessionRequest(req.id);
+                              }}
+                              className="py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span className="sr-only">Decline</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center text-xs text-slate-400 space-y-1">
+                        <CheckCircle2 className="w-6 h-6 mx-auto text-emerald-500 opacity-80" />
+                        <p className="font-semibold text-slate-600 dark:text-slate-300">All Caught Up!</p>
+                        <p className="text-[11px]">No pending session requests at the moment.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Persona Switcher Dropdown */}
             <div className="relative">

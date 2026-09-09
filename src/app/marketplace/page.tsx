@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
+import { broadcastRequestEvent } from '@/lib/realtime';
 import { 
   Search, Filter, Star, Clock, Globe, Award, Sparkles, 
   Repeat, ArrowRight, CheckCircle2, ShieldCheck, UserCheck, X
 } from 'lucide-react';
 
 function MarketplaceContent() {
-  const { currentUser, refreshUserData } = useApp();
+  const router = useRouter();
+  const { currentUser, setCurrentUser, refreshUserData } = useApp();
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
 
@@ -87,12 +89,14 @@ function MarketplaceContent() {
 
       const data = await res.json();
       if (data.success) {
-        setBookingSuccess(`Request sent! ${selectedTeacher.full_name} has 24 hours to respond. Zero credits deducted until completion.`);
+        broadcastRequestEvent('REQUEST_CREATED', {
+          requestId: data.requestId,
+          learnerId: currentUser.id,
+          teacherId: selectedTeacher.id,
+          skillName: selectedSkill.name,
+        });
+        setBookingSuccess(`Request dispatched instantly! ${selectedTeacher.full_name} has received the request in real time with 0 lag.`);
         refreshUserData();
-        setTimeout(() => {
-          setBookingModalOpen(false);
-          setBookingSuccess(null);
-        }, 3000);
       } else {
         alert(data.error);
       }
@@ -362,10 +366,40 @@ function MarketplaceContent() {
             </div>
 
             {bookingSuccess ? (
-              <div className="p-6 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-center space-y-3">
+              <div className="p-6 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-center space-y-4">
                 <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto animate-bounce" />
-                <h4 className="text-base font-bold text-emerald-900 dark:text-emerald-200">Request Sent Successfully!</h4>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">{bookingSuccess}</p>
+                <div>
+                  <h4 className="text-base font-bold text-emerald-900 dark:text-emerald-200">Request Sent in Real-Time! ⚡</h4>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed mt-1">{bookingSuccess}</p>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                  {selectedTeacher && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentUser(selectedTeacher);
+                        setBookingModalOpen(false);
+                        setBookingSuccess(null);
+                        router.push('/dashboard');
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-green-600 text-white font-bold text-xs shadow hover:scale-105 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      <span>Switch to {selectedTeacher.full_name.split(' ')[0]} to Accept Now →</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBookingModalOpen(false);
+                      setBookingSuccess(null);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={submitBooking} className="space-y-4 text-xs">
