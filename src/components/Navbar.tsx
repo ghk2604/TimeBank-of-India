@@ -40,8 +40,6 @@ export default function Navbar() {
         <span>🇮🇳 TIMEBANK OF INDIA</span>
         <span className="opacity-70">•</span>
         <span className="hidden sm:inline">{t.tagline}</span>
-        <span className="opacity-70">•</span>
-        <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-semibold">Strict Rule: 1 Hour = 1 Credit</span>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
