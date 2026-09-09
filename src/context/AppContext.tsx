@@ -5,40 +5,6 @@ import { Language, translations, TranslationStrings } from '@/lib/i18n';
 import { broadcastRequestEvent, subscribeToRequestEvents } from '@/lib/realtime';
 import confetti from 'canvas-confetti';
 
-export function playNotificationChime() {
-  if (typeof window === 'undefined') return;
-  try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const t0 = ctx.currentTime;
-
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(587.33, t0); // D5
-    gain1.gain.setValueAtTime(0.2, t0);
-    gain1.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(t0);
-    osc1.stop(t0 + 0.28);
-
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(880, t0 + 0.14); // A5
-    gain2.gain.setValueAtTime(0.25, t0 + 0.14);
-    gain2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(t0 + 0.14);
-    osc2.stop(t0 + 0.5);
-  } catch (e) {
-    // Silently ignore audio block
-  }
-}
-
 export interface CurrentUser {
   id: string;
   fullName: string;
@@ -65,6 +31,28 @@ export interface AcceptedModalState {
   skillName: string;
 }
 
+export function playNotificationChime() {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12); // A5
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch (e) {
+    // Ignore autoplay policy restriction
+  }
+}
+
 interface AppContextType {
   lang: Language;
   setLang: (lang: Language) => void;
@@ -87,6 +75,8 @@ interface AppContextType {
   declineSessionRequest: (requestId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   acceptedModal: AcceptedModalState | null;
   setAcceptedModal: (modal: AcceptedModalState | null) => void;
+  incomingModalRequest: any | null;
+  setIncomingModalRequest: (req: any | null) => void;
 }
 
 export const DEMO_USERS: CurrentUser[] = [
@@ -177,7 +167,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingIncomingRequests, setPendingIncomingRequests] = useState<any[]>([]);
   const [acceptedModal, setAcceptedModal] = useState<AcceptedModalState | null>(null);
   const shownAcceptedIdsRef = useRef<Set<string>>(new Set());
-  const knownIncomingIdsRef = useRef<Set<string>>(new Set());
+  const [incomingModalRequest, setIncomingModalRequest] = useState<any | null>(null);
+  const shownIncomingIdsRef = useRef<Set<string>>(new Set());
 
   const refreshRequests = useCallback(async (targetUserId?: string) => {
     const uid = targetUserId || currentUser?.id;
@@ -194,15 +185,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
         setPendingIncomingRequests(incoming);
 
-        // Check for brand-new incoming request for this teacher
-        const newReqs = incoming.filter((r: any) => !knownIncomingIdsRef.current.has(r.id));
-        if (newReqs.length > 0) {
-          newReqs.forEach((r: any) => knownIncomingIdsRef.current.add(r.id));
-          if (typeof window !== 'undefined' && sessionStorage.getItem(`tbi_seen_init_${uid}`)) {
-            playNotificationChime();
+        // Immediate pop-up trigger: Automatically alert teacher when an unacknowledged incoming request exists
+        if (incoming.length > 0) {
+          const latestReq = incoming[0];
+          const ackKey = `tbi_ack_incoming_${latestReq.id}`;
+          let alreadyAcked = shownIncomingIdsRef.current.has(latestReq.id);
+          if (!alreadyAcked && typeof window !== 'undefined') {
+            alreadyAcked = Boolean(sessionStorage.getItem(ackKey));
           }
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(`tbi_seen_init_${uid}`, 'true');
+          if (!alreadyAcked) {
+            shownIncomingIdsRef.current.add(latestReq.id);
+            try { sessionStorage.setItem(ackKey, 'true'); } catch (e) {}
+            setIncomingModalRequest(latestReq);
+            playNotificationChime();
           }
         }
 
@@ -219,7 +214,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (!alreadyAcked) {
             shownAcceptedIdsRef.current.add(req.id);
             try { sessionStorage.setItem(ackKey, 'true'); } catch (e) {}
-            playNotificationChime();
 
             fetch(`/api/sessions?userId=${uid}`, { cache: 'no-store' })
               .then(sRes => sRes.json())
@@ -313,15 +307,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshUserData(currentUser.id);
 
       if (type === 'REQUEST_CREATED' && payload) {
+        // Instant pop-up for the teacher receiving the learning request
         if (currentUser?.id === payload.teacherId) {
           playNotificationChime();
+          try { confetti({ particleCount: 75, spread: 60, origin: { y: 0.3 } }); } catch (e) {}
+          if (payload.requestId) {
+            shownIncomingIdsRef.current.add(payload.requestId);
+            try { sessionStorage.setItem(`tbi_ack_incoming_${payload.requestId}`, 'true'); } catch (e) {}
+          }
+          setIncomingModalRequest({
+            id: payload.requestId || '',
+            learner_id: payload.learnerId,
+            learner_name: payload.learnerName || 'Learner',
+            learner_avatar: payload.learnerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces',
+            teacher_id: payload.teacherId,
+            teacher_name: payload.teacherName,
+            skill_name: payload.skillName || 'Skill Exchange',
+            duration: payload.duration || 60,
+            credit_cost: payload.creditCost || 1,
+            learning_goal: payload.learningGoal || 'Master core concepts and practical implementation.',
+            preferred_date: 'Tomorrow',
+            preferred_time: '6:00 PM - 7:00 PM',
+            response_deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+          });
         }
       }
 
       if (type === 'REQUEST_ACCEPTED' && payload) {
         // Pop-up for the learner who requested the session
         if (currentUser?.id === payload.learnerId) {
-          playNotificationChime();
           if (payload.requestId) {
             shownAcceptedIdsRef.current.add(payload.requestId);
             try { sessionStorage.setItem(`tbi_ack_${payload.requestId}`, 'true'); } catch (e) {}
@@ -376,6 +390,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentUserState(GUEST_USER);
     setShowAuthModal(false);
     setPendingIncomingRequests([]);
+    setIncomingModalRequest(null);
+    shownIncomingIdsRef.current.clear();
   };
 
   const setCurrentUser = (user: any) => {
@@ -516,6 +532,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         declineSessionRequest,
         acceptedModal,
         setAcceptedModal,
+        incomingModalRequest,
+        setIncomingModalRequest,
       }}
     >
       {children}

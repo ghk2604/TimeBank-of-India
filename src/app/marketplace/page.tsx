@@ -92,8 +92,14 @@ function MarketplaceContent() {
         broadcastRequestEvent('REQUEST_CREATED', {
           requestId: data.requestId,
           learnerId: currentUser.id,
+          learnerName: currentUser.fullName,
+          learnerAvatar: currentUser.avatar,
           teacherId: selectedTeacher.id,
+          teacherName: selectedTeacher.full_name,
           skillName: selectedSkill.name,
+          duration: Number(duration),
+          learningGoal,
+          creditCost: Number(duration) <= 30 ? 0.5 : (Number(duration) <= 60 ? 1.0 : (Number(duration) <= 90 ? 1.5 : 2.0)),
         });
         setBookingSuccess(`Request dispatched instantly! ${selectedTeacher.full_name} has received the request in real time with 0 lag.`);
         refreshUserData();

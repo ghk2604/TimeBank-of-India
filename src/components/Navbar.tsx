@@ -174,20 +174,31 @@ export default function Navbar() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2 pt-1">
+                              <div className="flex items-center gap-1.5 pt-1">
+                                <button
+                                  onClick={async () => {
+                                    setNotifDropdownOpen(false);
+                                    await acceptSessionRequest(req.id);
+                                  }}
+                                  className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  <span>Accept ✓</span>
+                                </button>
                                 <Link
                                   href="/sessions"
                                   onClick={() => setNotifDropdownOpen(false)}
-                                  className="flex-1 py-1.5 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
+                                  className="py-1.5 px-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
+                                  title="Check & Review Details"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
-                                  <span>Check & Review Details</span>
+                                  <span>Details</span>
                                 </Link>
                                 <button
                                   onClick={async () => {
                                     await declineSessionRequest(req.id);
                                   }}
-                                  className="py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors"
+                                  className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors cursor-pointer"
                                   title="Decline Request"
                                 >
                                   <X className="w-3.5 h-3.5" />

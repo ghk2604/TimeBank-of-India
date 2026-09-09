@@ -3,15 +3,13 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Check, X, Clock, Sparkles, UserCheck, AlertCircle, ArrowRight, Eye } from 'lucide-react';
-import RequestReviewModal from '@/components/RequestReviewModal';
+import { Check, X, Clock, Sparkles, UserCheck, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function IncomingRequestBanner() {
   const { currentUser, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
 
   if (!pendingIncomingRequests || pendingIncomingRequests.length === 0) {
     return null;
@@ -22,10 +20,11 @@ export default function IncomingRequestBanner() {
   const currentReq = pendingIncomingRequests[safeIndex];
   if (!currentReq) return null;
 
-  const deadline = new Date(currentReq.response_deadline).getTime();
+  const deadline = currentReq.response_deadline ? new Date(currentReq.response_deadline).getTime() : Date.now() + 24 * 3600 * 1000;
   const now = Date.now();
-  const remainingHours = Math.max(0, Math.floor((deadline - now) / (1000 * 3600)));
-  const remainingMins = Math.max(0, Math.floor(((deadline - now) % (1000 * 3600)) / (1000 * 60)));
+  const diff = Math.max(0, deadline - now);
+  const remainingHours = Math.floor(diff / (1000 * 3600));
+  const remainingMins = Math.floor((diff % (1000 * 3600)) / (1000 * 60));
 
   const handleAccept = async () => {
     setProcessingId(currentReq.id);
@@ -57,8 +56,8 @@ export default function IncomingRequestBanner() {
         <div className="flex items-center gap-3">
           <div className="relative shrink-0">
             <img
-              src={currentReq.learner_avatar}
-              alt={currentReq.learner_name}
+              src={currentReq.learner_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'}
+              alt={currentReq.learner_name || 'Learner'}
               className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
             />
             <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 text-[9px] text-emerald-950 font-black animate-ping" />
@@ -73,7 +72,7 @@ export default function IncomingRequestBanner() {
                 ⚡ Incoming Session Request!
               </span>
               <span className="bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full font-bold text-[10px] text-amber-200">
-                {currentReq.skill_name}
+                {currentReq.skill_name || 'Skill Exchange'}
               </span>
               {pendingIncomingRequests.length > 1 && (
                 <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
@@ -82,7 +81,7 @@ export default function IncomingRequestBanner() {
               )}
             </div>
             <p className="text-white/90 text-xs line-clamp-1">
-              <strong>{currentReq.learner_name}</strong> wants to learn from you • {currentReq.duration} mins (Earns +{currentReq.credit_cost} Cr) • Goal: &quot;{currentReq.learning_goal}&quot;
+              <strong>{currentReq.learner_name || 'Learner'}</strong> wants to learn from you • {currentReq.duration || 60} mins (Earns +{currentReq.credit_cost || 1} Cr) • Goal: &quot;{currentReq.learning_goal || 'Learn fundamentals'}&quot;
             </p>
           </div>
         </div>
@@ -94,15 +93,6 @@ export default function IncomingRequestBanner() {
             <Clock className="w-3.5 h-3.5 animate-spin" />
             <span>{remainingHours}h {remainingMins}m left</span>
           </div>
-
-          {/* Action: Review Details */}
-          <button
-            onClick={() => setReviewModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-black/30 hover:bg-black/45 text-white font-bold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer text-xs"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            <span>Review Details</span>
-          </button>
 
           {/* Action: Immediate Accept */}
           <button
@@ -119,7 +109,6 @@ export default function IncomingRequestBanner() {
             onClick={handleDecline}
             disabled={processingId === currentReq.id}
             className="px-3 py-2 rounded-xl bg-black/20 hover:bg-black/40 text-white font-semibold transition-colors disabled:opacity-50"
-            title="Decline Request"
           >
             <X className="w-3.5 h-3.5" />
             <span className="sr-only">Decline</span>
@@ -160,24 +149,6 @@ export default function IncomingRequestBanner() {
         <div className="max-w-7xl mx-auto mt-1 p-2 rounded-lg bg-emerald-900/90 text-white text-xs font-bold text-center">
           🎉 {statusFeedback}
         </div>
-      )}
-
-      {/* Review Details Modal */}
-      {reviewModalOpen && currentReq && (
-        <RequestReviewModal
-          isOpen={reviewModalOpen}
-          request={currentReq}
-          onClose={() => setReviewModalOpen(false)}
-          onAccept={async (reqId) => {
-            await handleAccept();
-            setReviewModalOpen(false);
-          }}
-          onDecline={async (reqId) => {
-            await handleDecline();
-            setReviewModalOpen(false);
-          }}
-          isProcessing={processingId === currentReq.id}
-        />
       )}
     </div>
   );

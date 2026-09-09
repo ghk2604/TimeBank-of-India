@@ -6,10 +6,14 @@ export interface RequestEventPayload {
   requestId?: string;
   learnerId?: string;
   learnerName?: string;
+  learnerAvatar?: string;
   teacherId?: string;
   teacherName?: string;
   skillName?: string;
   sessionId?: string;
+  duration?: number;
+  learningGoal?: string;
+  creditCost?: number;
   timestamp?: number;
 }
 

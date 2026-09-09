@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SessionAcceptedModal from '@/components/SessionAcceptedModal';
 import IncomingRequestBanner from '@/components/IncomingRequestBanner';
+import IncomingRequestModal from '@/components/IncomingRequestModal';
 
 export const metadata: Metadata = {
   title: 'TimeBank of India 🇮🇳 | Peer-to-Peer Skill Learning & Knowledge Exchange',
@@ -25,6 +26,7 @@ export default function RootLayout({
         <AppProvider>
           <Navbar />
           <IncomingRequestBanner />
+          <IncomingRequestModal />
           <SessionAcceptedModal />
           <main className="flex-grow">{children}</main>
           <Footer />
