@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const { t, currentUser } = useApp();
+  const { t, currentUser, isLoggedIn, setShowAuthModal } = useApp();
   const [skills, setSkills] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
 
@@ -35,11 +35,17 @@ export default function HomePage() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-3xl mx-auto space-y-6">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/80 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm text-xs font-semibold text-slate-800 dark:text-slate-200">
-              <span className="flex h-2 w-2 rounded-full bg-orange-500 animate-ping" />
-              <span>{t.hero.badge}</span>
-            </div>
+            {/* New User Verification Banner */}
+            {!isLoggedIn && (
+              <div 
+                onClick={() => setShowAuthModal(true)}
+                className="cursor-pointer inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-orange-500/15 via-white/80 to-green-500/15 dark:from-orange-950/60 dark:via-slate-800 dark:to-green-950/60 border-2 border-orange-400/60 shadow-md hover:scale-105 transition-all text-xs font-bold text-slate-800 dark:text-slate-100 animate-in fade-in"
+              >
+                <span className="flex h-2.5 w-2.5 rounded-full bg-orange-500 animate-ping" />
+                <span>📱 First time visitor? Verify with Mobile (+91) or Email OTP to claim <strong>+1.0 Free Starter Credit</strong>!</span>
+                <span className="text-orange-600 dark:text-orange-400 underline">Verify Now →</span>
+              </div>
+            )}
 
             {/* Tagline */}
             <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.15]">
@@ -65,20 +71,41 @@ export default function HomePage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Link
-                href="/marketplace"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm sm:text-base shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
-              >
-                <span>{t.hero.ctaExplore}</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/dashboard"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-sm sm:text-base border border-slate-300 dark:border-slate-700 shadow-sm flex items-center justify-center gap-2"
-              >
-                <span>Go to Dashboard</span>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </Link>
+              {!isLoggedIn ? (
+                <>
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-green-600 hover:from-orange-600 hover:to-green-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                  >
+                    <span>Sign In or Register with OTP</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <Link
+                    href="/marketplace"
+                    className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-sm sm:text-base border border-slate-300 dark:border-slate-700 shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <span>{t.hero.ctaExplore}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/marketplace"
+                    className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm sm:text-base shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                  >
+                    <span>{t.hero.ctaExplore}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-sm sm:text-base border border-slate-300 dark:border-slate-700 shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <span>Go to Dashboard</span>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Controlled Borrowing Assurance */}

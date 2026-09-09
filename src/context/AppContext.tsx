@@ -12,6 +12,12 @@ export interface CurrentUser {
   borrowingLimit: number;
   role: 'LEARNER' | 'TEACHER' | 'ADMIN';
   unreadNotifications: number;
+  email?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  reputationScore?: number;
+  trustLevel?: string;
 }
 
 interface AppContextType {
@@ -20,6 +26,11 @@ interface AppContextType {
   t: TranslationStrings;
   currentUser: CurrentUser;
   setCurrentUser: (user: CurrentUser) => void;
+  isLoggedIn: boolean;
+  login: (user: CurrentUser) => void;
+  logout: () => void;
+  showAuthModal: boolean;
+  setShowAuthModal: (show: boolean) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   refreshUserData: () => Promise<void>;
@@ -30,6 +41,10 @@ export const DEMO_USERS: CurrentUser[] = [
     id: 'user-1',
     fullName: 'Rahul Kumar',
     username: 'rahulkumar',
+    email: 'rahul@timebankindia.in',
+    phone: '+91 98765 43210',
+    city: 'Hyderabad',
+    state: 'Telangana',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces',
     balance: 3.5,
     borrowingLimit: -3.0,
@@ -40,6 +55,10 @@ export const DEMO_USERS: CurrentUser[] = [
     id: 'user-2',
     fullName: 'Priya Sharma',
     username: 'priyasharma',
+    email: 'priya@timebankindia.in',
+    phone: '+91 98111 22334',
+    city: 'Bengaluru',
+    state: 'Karnataka',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=faces',
     balance: 4.5,
     borrowingLimit: -3.0,
@@ -50,6 +69,10 @@ export const DEMO_USERS: CurrentUser[] = [
     id: 'user-4',
     fullName: 'Vikram Patel',
     username: 'vikrampatel',
+    email: 'vikram@timebankindia.in',
+    phone: '+91 98333 44556',
+    city: 'Ahmedabad',
+    state: 'Gujarat',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces',
     balance: -1.0,
     borrowingLimit: -2.0,
@@ -60,6 +83,10 @@ export const DEMO_USERS: CurrentUser[] = [
     id: 'user-3',
     fullName: 'Anjali Rao',
     username: 'anjalirao',
+    email: 'anjali@timebankindia.in',
+    phone: '+91 98222 33445',
+    city: 'Visakhapatnam',
+    state: 'Andhra Pradesh',
     avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces',
     balance: 1.5,
     borrowingLimit: -2.0,
@@ -70,6 +97,10 @@ export const DEMO_USERS: CurrentUser[] = [
     id: 'admin',
     fullName: 'Platform Admin 🇮🇳',
     username: 'admin',
+    email: 'admin@timebankindia.in',
+    phone: '+91 98000 00000',
+    city: 'New Delhi',
+    state: 'Delhi',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=faces',
     balance: 999.0,
     borrowingLimit: -10.0,
@@ -82,7 +113,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Language>('en');
-  const [currentUser, setCurrentUser] = useState<CurrentUser>(DEMO_USERS[0]);
+  const [currentUser, setCurrentUserState] = useState<CurrentUser>(DEMO_USERS[0]);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   useEffect(() => {
@@ -101,12 +134,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.remove('dark');
     }
 
+    // Check authentication state
+    const savedAuth = localStorage.getItem('tbi_is_authenticated');
+    const savedUser = localStorage.getItem('tbi_user');
+    const dismissedGuest = sessionStorage.getItem('tbi_guest_browse');
+
+    if (savedAuth === 'true' && savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        setCurrentUserState(parsed);
+        setIsLoggedIn(true);
+      } catch (e) {
+        setIsLoggedIn(false);
+        if (!dismissedGuest) setShowAuthModal(true);
+      }
+    } else {
+      // First-time or unauthenticated visitor: show Login / Register OTP view on website load
+      setIsLoggedIn(false);
+      if (!dismissedGuest) {
+        setShowAuthModal(true);
+      }
+    }
+
     refreshUserData();
   }, []);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
     localStorage.setItem('tbi_lang', newLang);
+  };
+
+  const login = (user: CurrentUser) => {
+    setCurrentUserState(user);
+    setIsLoggedIn(true);
+    setShowAuthModal(false);
+    localStorage.setItem('tbi_is_authenticated', 'true');
+    localStorage.setItem('tbi_user', JSON.stringify(user));
+    sessionStorage.removeItem('tbi_guest_browse');
+  };
+
+  const logout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('tbi_is_authenticated');
+    localStorage.removeItem('tbi_user');
+    setCurrentUserState(DEMO_USERS[0]);
+    setShowAuthModal(true);
+  };
+
+  const setCurrentUser = (user: CurrentUser) => {
+    setCurrentUserState(user);
+    setIsLoggedIn(true);
+    localStorage.setItem('tbi_is_authenticated', 'true');
+    localStorage.setItem('tbi_user', JSON.stringify(user));
   };
 
   const toggleDarkMode = () => {
@@ -129,7 +208,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         if (data.user && data.wallet) {
-          setCurrentUser(prev => ({
+          setCurrentUserState(prev => ({
             ...prev,
             balance: data.wallet.balance,
             borrowingLimit: data.wallet.borrowing_limit,
@@ -150,6 +229,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         t: translations[lang],
         currentUser,
         setCurrentUser,
+        isLoggedIn,
+        login,
+        logout,
+        showAuthModal,
+        setShowAuthModal,
         isDarkMode,
         toggleDarkMode,
         refreshUserData

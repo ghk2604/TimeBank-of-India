@@ -256,6 +256,16 @@ export function initDB() {
       starter_credits REAL DEFAULT 1.0,
       created_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS otps (
+      id TEXT PRIMARY KEY,
+      identifier TEXT NOT NULL,
+      otp_code TEXT NOT NULL,
+      type TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      verified INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
   `);
 
   seedInitialData();

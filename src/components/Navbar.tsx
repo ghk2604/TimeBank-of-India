@@ -6,11 +6,11 @@ import { usePathname } from 'next/navigation';
 import { useApp, DEMO_USERS } from '@/context/AppContext';
 import { 
   Coins, Moon, Sun, Globe, User, ShieldAlert, BookOpen, Compass, 
-  Award, Wallet, GitPullRequest, Search, Zap, Layers, Menu, X, CheckCircle2, Key
+  Award, Wallet, GitPullRequest, Search, Zap, Layers, Menu, X, CheckCircle2, Key, Phone
 } from 'lucide-react';
 
 export default function Navbar() {
-  const { lang, setLang, t, currentUser, setCurrentUser, isDarkMode, toggleDarkMode } = useApp();
+  const { lang, setLang, t, currentUser, setCurrentUser, isLoggedIn, logout, setShowAuthModal, isDarkMode, toggleDarkMode } = useApp();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -97,14 +97,25 @@ export default function Navbar() {
               <span className="hidden sm:inline font-normal text-[11px] opacity-80">Credits</span>
             </Link>
 
-            {/* Login & Request Key Link */}
-            <Link
-              href="/login"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-orange-50 dark:hover:bg-orange-950/40 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-colors"
-            >
-              <Key className="w-3.5 h-3.5 text-orange-500" />
-              <span>Login / Key</span>
-            </Link>
+            {/* OTP Sign In / Register Button */}
+            {!isLoggedIn ? (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-green-600 hover:from-orange-600 hover:to-green-700 text-white text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                title="Verify with OTP to get 1.0 Starter Credit"
+              >
+                <span>Verify with OTP</span>
+                <span className="flex h-2 w-2 rounded-full bg-white animate-ping" />
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-orange-50 dark:hover:bg-orange-950/40 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-colors"
+              >
+                <Key className="w-3.5 h-3.5 text-orange-500" />
+                <span>Portal / Key</span>
+              </Link>
+            )}
 
             {/* Persona Switcher Dropdown */}
             <div className="relative">
@@ -132,10 +143,15 @@ export default function Navbar() {
 
               {userDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-700">
+                  <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
                     <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                       Switch User Persona
                     </p>
+                    {isLoggedIn && (
+                      <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">
+                        Active
+                      </span>
+                    )}
                   </div>
                   {DEMO_USERS.map((u) => (
                     <button
@@ -166,22 +182,38 @@ export default function Navbar() {
                   ))}
 
                   <div className="p-2 border-t border-slate-100 dark:border-slate-700 mt-1 space-y-1">
-                    <Link
-                      href="/login"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    <button
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        setShowAuthModal(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 text-left"
                     >
-                      <User className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Sign In / Register Account</span>
-                    </Link>
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Verify via Mobile / Email OTP</span>
+                    </button>
+
                     <Link
                       href="/login?tab=request-key"
                       onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
                       <Key className="w-3.5 h-3.5" />
                       <span>Request Access Key</span>
                     </Link>
+
+                    {isLoggedIn && (
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Sign Out Session</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
