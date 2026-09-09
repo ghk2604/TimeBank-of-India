@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Language, translations, TranslationStrings } from '@/lib/i18n';
 import { broadcastRequestEvent, subscribeToRequestEvents } from '@/lib/realtime';
 import confetti from 'canvas-confetti';
@@ -20,6 +20,15 @@ export interface CurrentUser {
   state?: string;
   reputationScore?: number;
   trustLevel?: string;
+}
+
+export interface AcceptedModalState {
+  isOpen: boolean;
+  sessionId: string;
+  isTeacher: boolean;
+  learnerName: string;
+  teacherName: string;
+  skillName: string;
 }
 
 interface AppContextType {
@@ -42,6 +51,8 @@ interface AppContextType {
   refreshRequests: (targetUserId?: string) => Promise<void>;
   acceptSessionRequest: (requestId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   declineSessionRequest: (requestId: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+  acceptedModal: AcceptedModalState | null;
+  setAcceptedModal: (modal: AcceptedModalState | null) => void;
 }
 
 export const DEMO_USERS: CurrentUser[] = [
@@ -160,6 +171,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   const [pendingIncomingRequests, setPendingIncomingRequests] = useState<any[]>([]);
+  const [acceptedModal, setAcceptedModal] = useState<AcceptedModalState | null>(null);
+  const shownAcceptedIdsRef = useRef<Set<string>>(new Set());
 
   const refreshRequests = useCallback(async (targetUserId?: string) => {
     const uid = targetUserId || currentUser?.id;
@@ -175,11 +188,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           (r: any) => r.teacher_id === uid && r.status === 'PENDING'
         );
         setPendingIncomingRequests(incoming);
+
+        // Fallback pop-up trigger: Check for newly accepted requests for learner
+        const acceptedRequests = (data.requests || []).filter(
+          (r: any) => r.learner_id === uid && r.status === 'ACCEPTED'
+        );
+        for (const req of acceptedRequests) {
+          const ackKey = `tbi_ack_${req.id}`;
+          let alreadyAcked = shownAcceptedIdsRef.current.has(req.id);
+          if (!alreadyAcked && typeof window !== 'undefined') {
+            alreadyAcked = Boolean(sessionStorage.getItem(ackKey));
+          }
+          if (!alreadyAcked) {
+            shownAcceptedIdsRef.current.add(req.id);
+            try { sessionStorage.setItem(ackKey, 'true'); } catch (e) {}
+
+            fetch(`/api/sessions?userId=${uid}`, { cache: 'no-store' })
+              .then(sRes => sRes.json())
+              .then(sData => {
+                const s = (sData.sessions || []).find((sItem: any) => sItem.request_id === req.id || sItem.teacher_id === req.teacher_id);
+                setAcceptedModal({
+                  isOpen: true,
+                  sessionId: s ? s.id : '',
+                  isTeacher: false,
+                  learnerName: req.learner_name || currentUser?.fullName || 'Learner',
+                  teacherName: req.teacher_name || 'Instructor',
+                  skillName: req.skill_name || 'Skill Exchange',
+                });
+                try { confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
+              })
+              .catch(() => {});
+          }
+        }
       }
     } catch (e) {
       // Silently catch background poll error
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.fullName]);
 
   useEffect(() => {
     try {
@@ -234,16 +279,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, 2500);
 
     // Instant cross-tab & local real-time event listener
-    const unsubscribe = subscribeToRequestEvents(() => {
+    const unsubscribe = subscribeToRequestEvents((type, payload) => {
       refreshRequests(currentUser.id);
       refreshUserData();
+
+      if (type === 'REQUEST_ACCEPTED' && payload) {
+        // Pop-up for the learner who requested the session
+        if (currentUser?.id === payload.learnerId) {
+          if (payload.requestId) {
+            shownAcceptedIdsRef.current.add(payload.requestId);
+            try { sessionStorage.setItem(`tbi_ack_${payload.requestId}`, 'true'); } catch (e) {}
+          }
+          setAcceptedModal({
+            isOpen: true,
+            sessionId: payload.sessionId || '',
+            isTeacher: false,
+            learnerName: payload.learnerName || currentUser.fullName,
+            teacherName: payload.teacherName || 'Instructor',
+            skillName: payload.skillName || 'Skill Exchange',
+          });
+          try {
+            confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+          } catch (e) {}
+        }
+      }
     });
 
     return () => {
       clearInterval(intervalId);
       unsubscribe();
     };
-  }, [currentUser?.id, refreshRequests]);
+  }, [currentUser?.id, currentUser?.fullName, refreshRequests]);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
@@ -334,7 +400,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       if (data.success) {
         confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
-        broadcastRequestEvent('REQUEST_ACCEPTED', { requestId, teacherId: currentUser.id });
+        setAcceptedModal({
+          isOpen: true,
+          sessionId: data.sessionId || '',
+          isTeacher: true,
+          learnerName: data.learnerName || 'Learner',
+          teacherName: data.teacherName || currentUser.fullName,
+          skillName: data.skillName || 'Skill Exchange',
+        });
+        broadcastRequestEvent('REQUEST_ACCEPTED', {
+          requestId,
+          sessionId: data.sessionId,
+          teacherId: data.teacherId || currentUser.id,
+          teacherName: data.teacherName || currentUser.fullName,
+          learnerId: data.learnerId,
+          learnerName: data.learnerName,
+          skillName: data.skillName,
+        });
         await refreshRequests(currentUser.id);
         await refreshUserData();
         return { success: true, message: data.message || 'Session accepted and scheduled successfully!' };
@@ -386,6 +468,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refreshRequests,
         acceptSessionRequest,
         declineSessionRequest,
+        acceptedModal,
+        setAcceptedModal,
       }}
     >
       {children}

@@ -151,6 +151,11 @@ export async function PUT(request: Request) {
         success: true,
         message: 'Request accepted and session scheduled.',
         sessionId,
+        teacherId: req.teacher_id,
+        teacherName: req.teacher_name,
+        learnerId: req.learner_id,
+        learnerName: req.learner_name,
+        skillName: req.skill_name,
       });
     } else if (action === 'REJECT') {
       db.prepare(`UPDATE learning_requests SET status = 'REJECTED' WHERE id = ?`).run(requestId);

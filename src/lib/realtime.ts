@@ -2,11 +2,14 @@
 
 export type RequestEventType = 'REQUEST_CREATED' | 'REQUEST_ACCEPTED' | 'REQUEST_REJECTED' | 'REQUEST_EXPIRED';
 
-interface RequestEventPayload {
+export interface RequestEventPayload {
   requestId?: string;
   learnerId?: string;
+  learnerName?: string;
   teacherId?: string;
+  teacherName?: string;
   skillName?: string;
+  sessionId?: string;
   timestamp?: number;
 }
 

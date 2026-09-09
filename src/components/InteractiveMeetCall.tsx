@@ -5,7 +5,7 @@ import {
   Video, VideoOff, Mic, MicOff, Share2, Hand, Smile, 
   MessageSquare, Maximize2, Minimize2, Grid, Layout,
   ShieldAlert, XCircle, CheckCircle2, Radio, Send, X,
-  AlertCircle, MonitorUp
+  AlertCircle, MonitorUp, Volume2, VolumeX
 } from 'lucide-react';
 import { CurrentUser } from '@/context/AppContext';
 
@@ -41,6 +41,125 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun2.l.google.com:19302' },
   ],
 };
+
+function createFallbackVideoStream(userName: string, roleTitle: string): { track: MediaStreamTrack; stop: () => void } {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 480;
+  const ctx = canvas.getContext('2d');
+
+  let frame = 0;
+  const isInstructor = roleTitle.toLowerCase().includes('instructor') || roleTitle.toLowerCase().includes('teacher');
+
+  const drawFrame = () => {
+    if (!ctx) return;
+    frame++;
+
+    // Gradient background
+    const grad = ctx.createLinearGradient(0, 0, 640, 480);
+    if (isInstructor) {
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(0.5, '#1e293b');
+      grad.addColorStop(1, '#064e3b');
+    } else {
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(0.5, '#1e293b');
+      grad.addColorStop(1, '#431407');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 640, 480);
+
+    // Animated glow rings
+    const pulse = Math.sin(frame * 0.08) * 10;
+    ctx.beginPath();
+    ctx.arc(320, 190, 75 + pulse, 0, Math.PI * 2);
+    ctx.fillStyle = isInstructor ? 'rgba(16, 185, 129, 0.2)' : 'rgba(249, 115, 22, 0.2)';
+    ctx.fill();
+
+    // Circle avatar
+    ctx.beginPath();
+    ctx.arc(320, 190, 65, 0, Math.PI * 2);
+    ctx.fillStyle = isInstructor ? '#047857' : '#c2410c';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // User Initial
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 44px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(userName ? userName.charAt(0).toUpperCase() : 'U', 320, 190);
+
+    // Animated sound wave bars
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 7; i++) {
+      const barH = Math.sin(frame * 0.18 + i * 0.9) * 14 + 16;
+      const barX = 260 + i * 20;
+      ctx.strokeStyle = isInstructor ? '#34d399' : '#fb923c';
+      ctx.beginPath();
+      ctx.moveTo(barX, 290 - barH / 2);
+      ctx.lineTo(barX, 290 + barH / 2);
+      ctx.stroke();
+    }
+
+    // Name text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(userName, 320, 340);
+
+    // Role text
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(`${roleTitle} • Live Stream`, 320, 370);
+
+    // Live footer watermark
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '11px monospace';
+    ctx.fillText(`TIMEBANK CLASSROOM HD • ${new Date().toLocaleTimeString()}`, 320, 435);
+  };
+
+  const timer = setInterval(drawFrame, 50); // 20 FPS
+  const canvasStream = (canvas as any).captureStream ? (canvas as any).captureStream(20) : null;
+  const track = canvasStream ? canvasStream.getVideoTracks()[0] : null;
+
+  const stop = () => {
+    clearInterval(timer);
+    if (track) track.stop();
+  };
+
+  if (track) {
+    track.onended = stop;
+    return { track, stop };
+  }
+
+  throw new Error('Canvas captureStream not supported in this browser');
+}
+
+function createFallbackAudioTrack(): { track: MediaStreamTrack; stop: () => void } {
+  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+  const audioCtx = new AudioCtx();
+  const dest = audioCtx.createMediaStreamDestination();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.00001; // virtually silent
+  osc.connect(gain);
+  gain.connect(dest);
+  osc.start();
+  const track = dest.stream.getAudioTracks()[0];
+  const stop = () => {
+    try {
+      osc.stop();
+      audioCtx.close().catch(() => {});
+      track.stop();
+    } catch (e) {}
+  };
+  track.onended = stop;
+  return { track, stop };
+}
 
 export default function InteractiveMeetCall({
   session,
@@ -97,9 +216,17 @@ export default function InteractiveMeetCall({
   const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
   const [isRemoteSpeaking, setIsRemoteSpeaking] = useState(false);
 
-  // DOM Refs
+  // Counterparty and initiator designation
+  const counterpartyId = session?.teacher_id === currentUser?.id ? session?.learner_id : session?.teacher_id;
+  const isInitiator = isTeacher || Boolean(currentUser?.id && counterpartyId && currentUser.id < counterpartyId);
+
+  // Audio output mute (prevents acoustic loopback during multi-tab testing)
+  const [remoteAudioMuted, setRemoteAudioMuted] = useState(false);
+
+  // DOM Refs & WebRTC Refs
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -108,6 +235,25 @@ export default function InteractiveMeetCall({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastSignalTimeRef = useRef<number>(0);
+  const iceQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const isCallJoinedRef = useRef<boolean>(false);
+  const canvasStopRef = useRef<(() => void) | null>(null);
+
+  // Callback refs to guarantee video elements immediately receive srcObject even when view changes
+  const setLocalVideo = useCallback((node: HTMLVideoElement | null) => {
+    localVideoRef.current = node;
+    if (node && localStreamRef.current) {
+      node.srcObject = localStreamRef.current;
+    }
+  }, []);
+
+  const setRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
+    remoteVideoRef.current = node;
+    if (node && remoteStream) {
+      node.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   // --------------------------------------------------------------------------
   // 1. SIGNALING: BroadcastChannel (Local tabs) + Database Polling (Remote)
@@ -144,6 +290,70 @@ export default function InteractiveMeetCall({
     }
   }, [currentUser, session?.id]);
 
+  // WebRTC Negotiation Helpers
+  const initiateOffer = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc || !localStreamRef.current) return;
+    try {
+      console.log('Initiating WebRTC offer as initiator...');
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      });
+      await pc.setLocalDescription(offer);
+      sendSignal('OFFER', offer);
+    } catch (err) {
+      console.error('Error creating WebRTC offer:', err);
+    }
+  }, [sendSignal]);
+
+  const handleOffer = useCallback(async (offerPayload: any) => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    try {
+      console.log('Handling incoming WebRTC offer...');
+      await pc.setRemoteDescription(new RTCSessionDescription(offerPayload));
+      while (iceQueueRef.current.length > 0) {
+        const cand = iceQueueRef.current.shift();
+        if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+      }
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendSignal('ANSWER', answer);
+    } catch (err) {
+      console.error('Error handling WebRTC offer:', err);
+    }
+  }, [sendSignal]);
+
+  const handleAnswer = useCallback(async (answerPayload: any) => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    try {
+      console.log('Handling incoming WebRTC answer...');
+      await pc.setRemoteDescription(new RTCSessionDescription(answerPayload));
+      while (iceQueueRef.current.length > 0) {
+        const cand = iceQueueRef.current.shift();
+        if (cand) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+      }
+    } catch (err) {
+      console.error('Error handling WebRTC answer:', err);
+    }
+  }, []);
+
+  const handleCandidate = useCallback(async (candidatePayload: any) => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    try {
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidatePayload));
+      } else {
+        iceQueueRef.current.push(candidatePayload);
+      }
+    } catch (err) {
+      console.error('Error adding ICE candidate:', err);
+    }
+  }, []);
+
   // Handle incoming signals
   const handleIncomingSignal = useCallback(async (msg: any) => {
     if (!msg || msg.fromUserId === currentUser?.id) return;
@@ -151,37 +361,24 @@ export default function InteractiveMeetCall({
     const { type, payload, fromUserName } = msg;
 
     if (type === 'USER_JOINED') {
-      // If we are teacher (initiator), create WebRTC offer
-      if (isTeacher && pcRef.current && localStream) {
-        try {
-          const offer = await pcRef.current.createOffer();
-          await pcRef.current.setLocalDescription(offer);
-          sendSignal('OFFER', offer);
-        } catch (err) {
-          console.error('Error creating offer:', err);
-        }
+      // Notify new joiner that we are in room
+      sendSignal('PEER_READY', { userId: currentUser?.id });
+
+      // If we are designated initiator and ready, create offer
+      if (isInitiator && pcRef.current && localStreamRef.current) {
+        initiateOffer();
+      }
+    } else if (type === 'PEER_READY') {
+      // Peer announced presence; initiate offer if initiator
+      if (isInitiator && pcRef.current && localStreamRef.current) {
+        initiateOffer();
       }
     } else if (type === 'OFFER' && pcRef.current) {
-      try {
-        await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload));
-        const answer = await pcRef.current.createAnswer();
-        await pcRef.current.setLocalDescription(answer);
-        sendSignal('ANSWER', answer);
-      } catch (err) {
-        console.error('Error handling offer:', err);
-      }
+      handleOffer(payload);
     } else if (type === 'ANSWER' && pcRef.current) {
-      try {
-        await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload));
-      } catch (err) {
-        console.error('Error handling answer:', err);
-      }
+      handleAnswer(payload);
     } else if (type === 'CANDIDATE' && pcRef.current) {
-      try {
-        await pcRef.current.addIceCandidate(new RTCIceCandidate(payload));
-      } catch (err) {
-        console.error('Error adding ice candidate:', err);
-      }
+      handleCandidate(payload);
     } else if (type === 'MEDIA_STATE') {
       if (typeof payload.micOn === 'boolean') setRemoteMicOn(payload.micOn);
       if (typeof payload.videoOn === 'boolean') setRemoteVideoOn(payload.videoOn);
@@ -197,7 +394,7 @@ export default function InteractiveMeetCall({
         setUnreadChatCount((prev) => prev + 1);
       }
     }
-  }, [currentUser?.id, isTeacher, localStream, sendSignal, counterpartyName, chatDrawerOpen]);
+  }, [currentUser?.id, isInitiator, sendSignal, initiateOffer, handleOffer, handleAnswer, handleCandidate, counterpartyName, chatDrawerOpen]);
 
   // Setup BroadcastChannel & Remote Polling
   useEffect(() => {
@@ -244,37 +441,84 @@ export default function InteractiveMeetCall({
     setPermissionError(null);
 
     try {
-      // 1. Get User Media (Camera & Mic)
-      let stream: MediaStream;
+      let videoTrack: MediaStreamTrack | null = null;
+      let audioTrack: MediaStreamTrack | null = null;
+
+      // 1. Try real camera and real microphone
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: { echoCancellation: true, noiseSuppression: true },
         });
-      } catch (camErr: any) {
-        // Fallback to audio-only if camera is not available / denied
-        console.warn('Camera failed, attempting audio only:', camErr);
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
-        });
-        setVideoOn(false);
+        videoTrack = stream.getVideoTracks()[0] || null;
+        audioTrack = stream.getAudioTracks()[0] || null;
+      } catch (err: any) {
+        console.warn('Physical camera/mic combined acquisition failed, trying individual devices:', err);
+        // Try getting microphone
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+          });
+          audioTrack = micStream.getAudioTracks()[0] || null;
+        } catch (micErr) {
+          console.warn('Physical microphone access failed:', micErr);
+        }
+
+        // Try getting camera separately
+        try {
+          const camStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+          videoTrack = camStream.getVideoTracks()[0] || null;
+        } catch (camErr) {
+          console.warn('Physical camera access failed (hardware in use or denied):', camErr);
+        }
       }
 
-      setLocalStream(stream);
+      // If video track is missing (e.g. 2nd tab on single webcam), generate fallback video track
+      if (!videoTrack) {
+        try {
+          const fallback = createFallbackVideoStream(currentUser?.fullName || 'User', myRole);
+          videoTrack = fallback.track;
+          canvasStopRef.current = fallback.stop;
+        } catch (e) {
+          console.warn('Fallback video generation error:', e);
+        }
+      }
+
+      // If audio track is missing, generate fallback audio track
+      if (!audioTrack) {
+        try {
+          const fallbackAudio = createFallbackAudioTrack();
+          audioTrack = fallbackAudio.track;
+        } catch (e) {
+          console.warn('Fallback audio generation error:', e);
+        }
+      }
+
+      const compositeStream = new MediaStream();
+      if (videoTrack) compositeStream.addTrack(videoTrack);
+      if (audioTrack) compositeStream.addTrack(audioTrack);
+
+      setLocalStream(compositeStream);
+      localStreamRef.current = compositeStream;
+
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.srcObject = compositeStream;
       }
 
       // 2. Setup Audio Visualizer
-      setupAudioAnalyser(stream);
+      if (audioTrack) {
+        setupAudioAnalyser(compositeStream);
+      }
 
       // 3. Initialize RTCPeerConnection
       const pc = new RTCPeerConnection(RTC_CONFIG);
       pcRef.current = pc;
 
       // Add local tracks to peer connection
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
+      compositeStream.getTracks().forEach((track) => {
+        pc.addTrack(track, compositeStream);
       });
 
       // Handle ICE Candidates
@@ -286,11 +530,15 @@ export default function InteractiveMeetCall({
 
       // Handle incoming remote tracks
       pc.ontrack = (e) => {
-        if (e.streams && e.streams[0]) {
-          setRemoteStream(e.streams[0]);
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = e.streams[0];
-          }
+        console.log('Received remote track:', e.track.kind, e.streams);
+        const rStream = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
+        setRemoteStream(rStream);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = rStream;
+        }
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = rStream;
+          remoteAudioRef.current.play().catch(() => {});
         }
       };
 
@@ -299,19 +547,30 @@ export default function InteractiveMeetCall({
       };
 
       setCallJoined(true);
+      isCallJoinedRef.current = true;
 
       // Notify counterparty that user has joined call
       sendSignal('USER_JOINED', {
+        userId: currentUser?.id,
         role: isTeacher ? 'TEACHER' : 'LEARNER',
       });
-      sendSignal('MEDIA_STATE', { micOn: true, videoOn: stream.getVideoTracks().length > 0 });
+      sendSignal('MEDIA_STATE', { micOn: true, videoOn: true });
+
+      // If we are initiator, attempt offer negotiation after brief delay
+      if (isInitiator) {
+        setTimeout(() => {
+          if (pcRef.current && pcRef.current.signalingState === 'stable') {
+            initiateOffer();
+          }
+        }, 500);
+      }
     } catch (err: any) {
       console.error('Failed to get media devices:', err);
       setPermissionError(
-        'Could not access camera or microphone. Please ensure permissions are granted in your browser settings.'
+        'Could not access camera or microphone: ' + (err.message || 'Permission denied')
       );
-      // Still allow entering interactive room with audio visualizer / mock
       setCallJoined(true);
+      isCallJoinedRef.current = true;
     } finally {
       setIsConnecting(false);
     }
@@ -363,24 +622,29 @@ export default function InteractiveMeetCall({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
+      if (canvasStopRef.current) canvasStopRef.current();
       if (localStream) localStream.getTracks().forEach((t) => t.stop());
       if (screenStream) screenStream.getTracks().forEach((t) => t.stop());
       if (pcRef.current) pcRef.current.close();
     };
   }, [localStream, screenStream]);
 
-  // Keep video refs attached if streams change
+  // Keep video refs and audio ref attached if streams or viewMode change
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
-  }, [localStream, callJoined]);
+  }, [localStream, callJoined, viewMode]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(() => {});
+    }
+  }, [remoteStream, viewMode]);
 
   // --------------------------------------------------------------------------
   // 3. MEDIA CONTROLS (MIC, CAMERA, SCREEN SHARE)
@@ -626,6 +890,9 @@ export default function InteractiveMeetCall({
       ) : (
         /* ACTIVE CALL SCREEN: GOOGLE MEET LAYOUT */
         <div className="w-full h-full flex flex-col justify-between relative pt-14 pb-20 px-4">
+          {/* DEDICATED REMOTE AUDIO ELEMENT */}
+          <audio ref={remoteAudioRef} autoPlay playsInline muted={remoteAudioMuted} />
+
           {/* VIDEO STAGE CONTAINER */}
           <div className="flex-1 w-full relative flex items-center justify-center overflow-hidden">
             {/* VIEW MODE: SCREEN SHARE ACTIVE */}
@@ -653,7 +920,7 @@ export default function InteractiveMeetCall({
                   }`}
                 >
                   <video
-                    ref={remoteVideoRef}
+                    ref={setRemoteVideo}
                     autoPlay
                     playsInline
                     className={`w-full h-full object-cover ${remoteVideoOn ? 'block' : 'hidden'}`}
@@ -698,7 +965,7 @@ export default function InteractiveMeetCall({
                   }`}
                 >
                   <video
-                    ref={localVideoRef}
+                    ref={setLocalVideo}
                     autoPlay
                     playsInline
                     muted
@@ -742,7 +1009,7 @@ export default function InteractiveMeetCall({
               <div className="w-full h-full relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden flex items-center justify-center">
                 {/* PRIMARY VIEW: COUNTERPARTY */}
                 <video
-                  ref={remoteVideoRef}
+                  ref={setRemoteVideo}
                   autoPlay
                   playsInline
                   className={`w-full h-full object-cover ${remoteVideoOn ? 'block' : 'hidden'}`}
@@ -788,7 +1055,7 @@ export default function InteractiveMeetCall({
                   }`}
                 >
                   <video
-                    ref={localVideoRef}
+                    ref={setLocalVideo}
                     autoPlay
                     playsInline
                     muted
@@ -846,6 +1113,19 @@ export default function InteractiveMeetCall({
               title={videoOn ? 'Turn Off Camera (Cmd+E)' : 'Turn On Camera'}
             >
               {videoOn ? <Video className="w-4 h-4 sm:w-5 sm:h-5" /> : <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" />}
+            </button>
+
+            {/* Speaker / Remote Audio Mute Toggle */}
+            <button
+              onClick={() => setRemoteAudioMuted(!remoteAudioMuted)}
+              className={`p-3 rounded-2xl transition-all cursor-pointer ${
+                remoteAudioMuted
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg'
+                  : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
+              }`}
+              title={remoteAudioMuted ? "Unmute Peer Audio" : "Mute Peer Audio (Prevents Echo/Feedback in 2-Tab Testing)"}
+            >
+              {remoteAudioMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
 
             {/* Screen Share */}
