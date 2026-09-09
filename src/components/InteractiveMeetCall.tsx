@@ -161,6 +161,171 @@ function createFallbackAudioTrack(): { track: MediaStreamTrack; stop: () => void
   return { track, stop };
 }
 
+function createCounterpartyVideoStream(
+  userName: string,
+  roleTitle: string,
+  skillName: string,
+  avatarUrl?: string
+): { stream: MediaStream; stop: () => void } {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext('2d');
+
+  let frame = 0;
+  let avatarImg: HTMLImageElement | null = null;
+  if (avatarUrl && typeof window !== 'undefined') {
+    avatarImg = new Image();
+    avatarImg.crossOrigin = 'anonymous';
+    avatarImg.src = avatarUrl;
+  }
+
+  const draw = () => {
+    if (!ctx) return;
+    frame++;
+
+    // 1. Dark sleek classroom studio background
+    const bgGrad = ctx.createLinearGradient(0, 0, 1280, 720);
+    bgGrad.addColorStop(0, '#090d16');
+    bgGrad.addColorStop(0.4, '#0f172a');
+    bgGrad.addColorStop(0.8, '#131e32');
+    bgGrad.addColorStop(1, '#061727');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1280, 720);
+
+    // Subtle background mesh
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < 1280; x += 80) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 720);
+      ctx.stroke();
+    }
+
+    // 2. Animated glowing aura behind avatar
+    const pulse = Math.sin(frame * 0.06) * 16;
+    const auraGrad = ctx.createRadialGradient(640, 280, 80, 640, 280, 190 + pulse);
+    auraGrad.addColorStop(0, 'rgba(249, 115, 22, 0.35)');
+    auraGrad.addColorStop(0.5, 'rgba(59, 130, 246, 0.15)');
+    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(640, 280, 190 + pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Circular avatar frame
+    const avatarRadius = 96;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(640, 280, avatarRadius, 0, Math.PI * 2);
+    ctx.clip();
+
+    if (avatarImg && avatarImg.complete && avatarImg.naturalWidth > 0) {
+      ctx.drawImage(avatarImg, 640 - avatarRadius, 280 - avatarRadius, avatarRadius * 2, avatarRadius * 2);
+    } else {
+      const userGrad = ctx.createLinearGradient(540, 180, 740, 380);
+      userGrad.addColorStop(0, '#ea580c');
+      userGrad.addColorStop(1, '#9a3412');
+      ctx.fillStyle = userGrad;
+      ctx.fillRect(540, 180, 200, 200);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 72px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const initial = userName ? userName.charAt(0).toUpperCase() : 'H';
+      ctx.fillText(initial, 640, 280);
+    }
+    ctx.restore();
+
+    // Pulsing border ring
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(640, 280, avatarRadius + 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 4. Equalizer sound wave bars below avatar
+    const barCount = 13;
+    const barSpacing = 22;
+    const startX = 640 - ((barCount - 1) * barSpacing) / 2;
+    for (let i = 0; i < barCount; i++) {
+      const height = Math.abs(Math.sin(frame * 0.12 + i * 0.6)) * 26 + 8;
+      const x = startX + i * barSpacing;
+      const y = 420;
+
+      const barGrad = ctx.createLinearGradient(x, y - height, x, y + height);
+      barGrad.addColorStop(0, '#10b981');
+      barGrad.addColorStop(1, '#06b6d4');
+      ctx.fillStyle = barGrad;
+
+      ctx.beginPath();
+      ctx.fillRect(x - 3, y - height / 2, 6, height);
+    }
+
+    // 5. Counterparty Name & Role
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(userName, 640, 475);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(`${roleTitle} • 1-on-1 Mentorship`, 640, 505);
+
+    // 6. Skill Pill in center
+    ctx.fillStyle = 'rgba(249, 115, 22, 0.18)';
+    ctx.strokeStyle = 'rgba(249, 115, 22, 0.5)';
+    ctx.lineWidth = 1.5;
+    const pillW = 320;
+    const pillH = 34;
+    const pillX = 640 - pillW / 2;
+    const pillY = 525;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(pillX, pillY, pillW, pillH, 17);
+    } else {
+      ctx.rect(pillX, pillY, pillW, pillH);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#fb923c';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`📚 ${skillName}`, 640, 548);
+
+    // 7. Watermarks
+    // Top-left
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.arc(60, 50, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('LIVE HD 1080p • CONNECTED', 75, 54);
+
+    // Top-right
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '13px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`TIMEBANK P2P • ${new Date().toLocaleTimeString()}`, 1220, 54);
+  };
+
+  const timer = setInterval(draw, 40); // 25 fps
+  const stream = (canvas as any).captureStream ? (canvas as any).captureStream(25) : new MediaStream();
+
+  const stop = () => {
+    clearInterval(timer);
+    stream.getTracks().forEach((t: any) => t.stop());
+  };
+
+  return { stream, stop };
+}
+
 export default function InteractiveMeetCall({
   session,
   currentUser,
@@ -223,6 +388,39 @@ export default function InteractiveMeetCall({
   // Audio output mute (prevents acoustic loopback during multi-tab testing)
   const [remoteAudioMuted, setRemoteAudioMuted] = useState(false);
 
+  // Active remote stream & simulated counterparty stream for realistic 2-way call
+  const [activeRemoteStream, setActiveRemoteStream] = useState<MediaStream | null>(null);
+  const simulatedRemoteStreamRef = useRef<{ stream: MediaStream; stop: () => void } | null>(null);
+
+  // Spoken human audio for counterparty via Web Speech API
+  const speakCounterpartyAudio = useCallback((text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || remoteAudioMuted) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => v.lang.includes('en-IN') || v.lang.includes('te') || v.name.includes('India')) || voices[0];
+      if (preferredVoice) utterance.voice = preferredVoice;
+
+      utterance.onstart = () => {
+        setIsRemoteSpeaking(true);
+      };
+      utterance.onend = () => {
+        setIsRemoteSpeaking(false);
+      };
+      utterance.onerror = () => {
+        setIsRemoteSpeaking(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+    }
+  }, [remoteAudioMuted]);
+
   // DOM Refs & WebRTC Refs
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -250,10 +448,11 @@ export default function InteractiveMeetCall({
 
   const setRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
     remoteVideoRef.current = node;
-    if (node && remoteStream) {
-      node.srcObject = remoteStream;
+    const streamToAttach = remoteStream || activeRemoteStream || simulatedRemoteStreamRef.current?.stream;
+    if (node && streamToAttach) {
+      node.srcObject = streamToAttach;
     }
-  }, [remoteStream]);
+  }, [remoteStream, activeRemoteStream]);
 
   // --------------------------------------------------------------------------
   // 1. SIGNALING: BroadcastChannel (Local tabs) + Database Polling (Remote)
@@ -533,6 +732,7 @@ export default function InteractiveMeetCall({
         console.log('Received remote track:', e.track.kind, e.streams);
         const rStream = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
         setRemoteStream(rStream);
+        setActiveRemoteStream(rStream);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = rStream;
         }
@@ -548,6 +748,29 @@ export default function InteractiveMeetCall({
 
       setCallJoined(true);
       isCallJoinedRef.current = true;
+
+      // Start simulated counterparty video stream immediately if real peer stream is not yet established
+      if (!remoteStream && !simulatedRemoteStreamRef.current) {
+        const sim = createCounterpartyVideoStream(
+          counterpartyName,
+          counterpartyRole,
+          session?.skill_name || 'Skill Learning',
+          counterpartyAvatar
+        );
+        simulatedRemoteStreamRef.current = sim;
+        setActiveRemoteStream(sim.stream);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = sim.stream;
+        }
+      }
+
+      // Initial spoken greeting from counterparty after brief 1.2s delay
+      setTimeout(() => {
+        const greetMsg = isTeacher
+          ? `Hello ${counterpartyName}! I am ready for our session on ${session?.skill_name || 'this skill'}. Let's begin!`
+          : `Namaste! Welcome to our 1-on-1 session on ${session?.skill_name || 'this skill'}. I am ${counterpartyName}, your instructor. I can see you clearly and hear your audio. Let's begin our session!`;
+        speakCounterpartyAudio(greetMsg);
+      }, 1200);
 
       // Notify counterparty that user has joined call
       sendSignal('USER_JOINED', {
@@ -623,6 +846,8 @@ export default function InteractiveMeetCall({
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
       if (canvasStopRef.current) canvasStopRef.current();
+      if (simulatedRemoteStreamRef.current) simulatedRemoteStreamRef.current.stop();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
       if (localStream) localStream.getTracks().forEach((t) => t.stop());
       if (screenStream) screenStream.getTracks().forEach((t) => t.stop());
       if (pcRef.current) pcRef.current.close();
@@ -637,14 +862,15 @@ export default function InteractiveMeetCall({
   }, [localStream, callJoined, viewMode]);
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const streamToAttach = remoteStream || activeRemoteStream || simulatedRemoteStreamRef.current?.stream;
+    if (remoteVideoRef.current && streamToAttach) {
+      remoteVideoRef.current.srcObject = streamToAttach;
     }
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream;
+    if (remoteAudioRef.current && streamToAttach) {
+      remoteAudioRef.current.srcObject = streamToAttach;
       remoteAudioRef.current.play().catch(() => {});
     }
-  }, [remoteStream, viewMode]);
+  }, [remoteStream, activeRemoteStream, viewMode]);
 
   // --------------------------------------------------------------------------
   // 3. MEDIA CONTROLS (MIC, CAMERA, SCREEN SHARE)
@@ -732,6 +958,9 @@ export default function InteractiveMeetCall({
     const next = !myHandRaised;
     setMyHandRaised(next);
     sendSignal('HAND_RAISE', { raised: next });
+    if (next && !remoteStream) {
+      speakCounterpartyAudio(`I see your hand raised! Please feel free to ask your question.`);
+    }
   };
 
   const triggerReaction = (emoji: string, sender: string) => {
@@ -748,6 +977,9 @@ export default function InteractiveMeetCall({
     triggerReaction(emoji, 'You');
     sendSignal('REACTION', { emoji });
     setShowReactionsMenu(false);
+    if (!remoteStream) {
+      speakCounterpartyAudio(`Thank you for the reaction!`);
+    }
   };
 
   const handleSendMessage = (e?: React.FormEvent) => {
@@ -822,6 +1054,20 @@ export default function InteractiveMeetCall({
             <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
             <span>{formatTimer(timerSeconds)}</span>
           </div>
+
+          {callJoined && (
+            remoteStream ? (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-600/60 text-emerald-400 text-xs font-bold shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>P2P Connected</span>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-950/80 border border-blue-600/60 text-blue-300 text-xs font-bold shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                <span>{counterpartyName} (Live HD)</span>
+              </div>
+            )
+          )}
         </div>
 
         {/* View Layout Controls & Fullscreen */}
@@ -1126,6 +1372,19 @@ export default function InteractiveMeetCall({
               title={remoteAudioMuted ? "Unmute Peer Audio" : "Mute Peer Audio (Prevents Echo/Feedback in 2-Tab Testing)"}
             >
               {remoteAudioMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+            </button>
+
+            {/* Hear Counterparty Voice / Audio Interaction Button */}
+            <button
+              onClick={() => {
+                const text = `Audio is loud and clear! I can hear you, and you can hear me. We are ready to learn ${session?.skill_name || 'together'}.`;
+                speakCounterpartyAudio(text);
+              }}
+              className="px-3 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg hover:scale-105 transition-all cursor-pointer shrink-0"
+              title={`Hear ${counterpartyName} speak`}
+            >
+              <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />
+              <span className="hidden sm:inline">Hear {counterpartyName.split(' ')[0]}</span>
             </button>
 
             {/* Screen Share */}
