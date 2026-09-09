@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useApp, DEMO_USERS } from '@/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import { 
   Key, ShieldCheck, User, Lock, Mail, Phone, MapPin, 
   Sparkles, CheckCircle2, ArrowRight, Copy, Check, BookOpen, UserCheck, AlertCircle
@@ -289,34 +289,6 @@ function LoginContent() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          {/* Quick 1-Click Demo Personas */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
-              Quick 1-Click Persona Sign In (Password Verified)
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {DEMO_USERS.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    setLoginIdentifier(u.email || u.username);
-                    setLoginPassword('India@123');
-                    setCurrentUser(u);
-                    refreshUserData();
-                    router.push('/dashboard');
-                  }}
-                  className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900 hover:bg-orange-50 dark:hover:bg-orange-950/40 border border-slate-200 dark:border-slate-700 text-left flex items-center gap-2 transition-colors"
-                >
-                  <img src={u.avatar} alt={u.fullName} className="w-6 h-6 rounded-full object-cover" />
-                  <div className="truncate">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">{u.fullName.split(' ')[0]}</span>
-                    <span className="text-[10px] text-slate-400">{u.role}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 

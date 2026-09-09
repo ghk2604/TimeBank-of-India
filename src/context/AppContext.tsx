@@ -57,74 +57,32 @@ interface AppContextType {
 
 export const DEMO_USERS: CurrentUser[] = [
   {
-    id: 'user-1',
-    fullName: 'Rahul Kumar',
-    username: 'rahulkumar',
-    email: 'rahul@timebankindia.in',
+    id: 'user-1788931038705',
+    fullName: 'Hari Krishna',
+    username: 'harikrishna',
+    email: 'harikrishna26888@gmail.com',
     phone: '+91 98765 43210',
     city: 'Hyderabad',
     state: 'Telangana',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces',
-    balance: 3.5,
+    balance: 5.0,
     borrowingLimit: -3.0,
     role: 'TEACHER',
-    unreadNotifications: 2
+    unreadNotifications: 1
   },
   {
-    id: 'user-2',
-    fullName: 'Priya Sharma',
-    username: 'priyasharma',
-    email: 'priya@timebankindia.in',
+    id: 'user-1788935861236',
+    fullName: 'saicharan',
+    username: 'sai',
+    email: 'pullakanandamsaicharan5838@gmail.com',
     phone: '+91 98111 22334',
     city: 'Bengaluru',
     state: 'Karnataka',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=faces',
-    balance: 4.5,
-    borrowingLimit: -3.0,
-    role: 'TEACHER',
-    unreadNotifications: 1
-  },
-  {
-    id: 'user-4',
-    fullName: 'Vikram Patel',
-    username: 'vikrampatel',
-    email: 'vikram@timebankindia.in',
-    phone: '+91 98333 44556',
-    city: 'Ahmedabad',
-    state: 'Gujarat',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces',
-    balance: -1.0,
-    borrowingLimit: -2.0,
+    balance: 5.0,
+    borrowingLimit: -3.0,
     role: 'LEARNER',
     unreadNotifications: 1
-  },
-  {
-    id: 'user-3',
-    fullName: 'Anjali Rao',
-    username: 'anjalirao',
-    email: 'anjali@timebankindia.in',
-    phone: '+91 98222 33445',
-    city: 'Visakhapatnam',
-    state: 'Andhra Pradesh',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces',
-    balance: 1.5,
-    borrowingLimit: -2.0,
-    role: 'LEARNER',
-    unreadNotifications: 0
-  },
-  {
-    id: 'admin',
-    fullName: 'Platform Admin 🇮🇳',
-    username: 'admin',
-    email: 'admin@timebankindia.in',
-    phone: '+91 98000 00000',
-    city: 'New Delhi',
-    state: 'Delhi',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=faces',
-    balance: 999.0,
-    borrowingLimit: -10.0,
-    role: 'ADMIN',
-    unreadNotifications: 3
   }
 ];
 
@@ -132,7 +90,7 @@ export function normalizeUser(rawUser: any): CurrentUser {
   if (!rawUser || typeof rawUser !== 'object') {
     return DEMO_USERS[0];
   }
-  const id = rawUser.id || 'user-1';
+  const id = rawUser.id || 'user-1788931038705';
   const fullName = rawUser.fullName || rawUser.full_name || rawUser.name || 'User';
   const username = rawUser.username || id;
   const avatar = rawUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces';

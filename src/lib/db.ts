@@ -338,6 +338,7 @@ function seedInitialData() {
   }
 
   // 2. Insert Users
+
   const insertUser = db.prepare(`
     INSERT OR IGNORE INTO users (id, full_name, username, email, phone, password_hash, avatar, bio, city, state, languages, verification_status, reputation_score, trust_level, learning_streak, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -350,89 +351,38 @@ function seedInitialData() {
 
   const users = [
     {
-      id: 'user-1',
-      fullName: 'Rahul Kumar',
-      username: 'rahulkumar',
-      email: 'rahul@timebankindia.in',
+      id: 'user-1788931038705',
+      fullName: 'Hari Krishna',
+      username: 'harikrishna',
+      email: 'harikrishna26888@gmail.com',
       phone: '+91 98765 43210',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces',
-      bio: 'Software engineer passionate about Python, clean code architecture, and mentoring aspiring developers across India.',
+      bio: 'Verified Instructor passionate about Telugu literature, spoken fluency, and software development.',
       city: 'Hyderabad',
       state: 'Telangana',
-      languages: JSON.stringify(['English', 'Hindi', 'Telugu']),
-      verification: 'VERIFIED',
-      reputation: 88,
-      trust: 'Trusted Member',
-      streak: 12,
-      wallet: { balance: 3.5, borrowingLimit: -3.0, earned: 14.0, spent: 10.5 }
-    },
-    {
-      id: 'user-2',
-      fullName: 'Priya Sharma',
-      username: 'priyasharma',
-      email: 'priya@timebankindia.in',
-      phone: '+91 98111 22334',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=faces',
-      bio: 'Lead Product Designer creating intuitive digital products. Looking to master Python data analysis in exchange for UI/UX mentoring.',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      languages: JSON.stringify(['English', 'Hindi']),
-      verification: 'VERIFIED',
-      reputation: 94,
-      trust: 'Skill Expert',
-      streak: 18,
-      wallet: { balance: 4.5, borrowingLimit: -3.0, earned: 21.0, spent: 16.5 }
-    },
-    {
-      id: 'user-3',
-      fullName: 'Anjali Rao',
-      username: 'anjalirao',
-      email: 'anjali@timebankindia.in',
-      phone: '+91 98222 33445',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces',
-      bio: 'Math enthusiast & communicative educator. Learned Python from Rahul and Priya, now paying forward knowledge across the ecosystem!',
-      city: 'Visakhapatnam',
-      state: 'Andhra Pradesh',
       languages: JSON.stringify(['English', 'Telugu']),
       verification: 'VERIFIED',
-      reputation: 82,
-      trust: 'Active Teacher',
-      streak: 7,
-      wallet: { balance: 1.5, borrowingLimit: -2.0, earned: 8.0, spent: 6.5 }
+      reputation: 95,
+      trust: 'Verified Instructor',
+      streak: 15,
+      wallet: { balance: 5.0, borrowingLimit: -3.0, earned: 15.0, spent: 5.0 }
     },
     {
-      id: 'user-4',
-      fullName: 'Vikram Patel',
-      username: 'vikrampatel',
-      email: 'vikram@timebankindia.in',
-      phone: '+91 98333 44556',
+      id: 'user-1788935861236',
+      fullName: 'saicharan',
+      username: 'sai',
+      email: 'pullakanandamsaicharan5838@gmail.com',
+      phone: '+91 98111 22334',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=faces',
-      bio: 'Frontend developer eagerly learning Machine Learning. Currently in negative balance (-1.0 Credit) seeking to teach Web Dev to recover credits.',
-      city: 'Ahmedabad',
-      state: 'Gujarat',
-      languages: JSON.stringify(['English', 'Hindi']),
+      bio: 'Active learner and developer exploring Python and UI/UX design in exchange for time credits.',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      languages: JSON.stringify(['English', 'Telugu']),
       verification: 'VERIFIED',
-      reputation: 74,
+      reputation: 90,
       trust: 'Active Learner',
-      streak: 4,
-      wallet: { balance: -1.0, borrowingLimit: -2.0, earned: 4.0, spent: 5.0 }
-    },
-    {
-      id: 'user-5',
-      fullName: 'Dr. Neha Verma',
-      username: 'nehaverma',
-      email: 'neha@timebankindia.in',
-      phone: '+91 98444 55667',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces',
-      bio: 'Research scientist with PhD in Applied Physics. Teaches Physics and Machine Learning fundamentals for passionate students.',
-      city: 'New Delhi',
-      state: 'Delhi',
-      languages: JSON.stringify(['English', 'Hindi']),
-      verification: 'VERIFIED',
-      reputation: 98,
-      trust: 'Skill Expert',
-      streak: 26,
-      wallet: { balance: 8.0, borrowingLimit: -3.0, earned: 32.0, spent: 24.0 }
+      streak: 8,
+      wallet: { balance: 5.0, borrowingLimit: -3.0, earned: 10.0, spent: 5.0 }
     }
   ];
 
