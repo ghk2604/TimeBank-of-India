@@ -44,7 +44,7 @@ interface AppContextType {
   setShowAuthModal: (show: boolean) => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
-  refreshUserData: () => Promise<void>;
+  refreshUserData: (explicitUserId?: string) => Promise<void>;
 
   // Real-time Requests & Instant Acceptance
   pendingIncomingRequests: any[];
@@ -324,21 +324,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const refreshUserData = async () => {
+  const refreshUserData = async (explicitUserId?: string) => {
     try {
-      const targetId = currentUser?.id;
+      const targetId = explicitUserId || currentUser?.id;
       if (!targetId) return;
       const res = await fetch(`/api/users/${targetId}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.user && data.wallet) {
-          setCurrentUserState(prev => ({
-            ...prev,
-            fullName: data.user.full_name || prev.fullName || 'User',
-            balance: typeof data.wallet.balance === 'number' ? data.wallet.balance : (Number(data.wallet.balance) || prev.balance),
-            borrowingLimit: typeof data.wallet.borrowing_limit === 'number' ? data.wallet.borrowing_limit : (Number(data.wallet.borrowing_limit) || prev.borrowingLimit),
-            unreadNotifications: typeof data.unreadNotifications === 'number' ? data.unreadNotifications : prev.unreadNotifications
-          }));
+          setCurrentUserState(prev => {
+            // Guard: only update if this response matches the target user
+            if (prev.id !== targetId) return prev;
+            return {
+              ...prev,
+              fullName: data.user.full_name || prev.fullName || 'User',
+              username: data.user.username || prev.username,
+              email: data.user.email || prev.email,
+              phone: data.user.phone || prev.phone,
+              city: data.user.city || prev.city,
+              state: data.user.state || prev.state,
+              balance: typeof data.wallet.balance === 'number' ? data.wallet.balance : (Number(data.wallet.balance) || prev.balance),
+              borrowingLimit: typeof data.wallet.borrowing_limit === 'number' ? data.wallet.borrowing_limit : (Number(data.wallet.borrowing_limit) || prev.borrowingLimit),
+              unreadNotifications: typeof data.unreadNotifications === 'number' ? data.unreadNotifications : prev.unreadNotifications
+            };
+          });
         }
       }
     } catch (e) {

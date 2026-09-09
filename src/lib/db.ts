@@ -11,9 +11,20 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'timebank.db');
 const db = new Database(dbPath);
 
-// Enable WAL mode for high concurrency
+// Enable WAL mode for high concurrency with aggressive disk checkpointing
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('wal_autocheckpoint = 10'); // Checkpoint every 10 pages (~40KB) instead of default 1000 pages (4MB)
 db.pragma('foreign_keys = ON');
+
+// Export helper to immediately flush WAL buffer to the physical database file on disk
+export function checkpointDB() {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    console.warn('SQLite checkpoint warning:', err);
+  }
+}
 
 // Initialize schema
 export function initDB() {
@@ -307,6 +318,7 @@ export function initDB() {
   }
 
   seedInitialData();
+  checkpointDB();
 }
 
 function seedInitialData() {

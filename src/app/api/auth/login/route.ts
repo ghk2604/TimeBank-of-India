@@ -59,6 +59,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Incorrect password. Please enter the valid password.' }, { status: 401 });
     }
 
+    const hasTeachingSkills = db.prepare(`SELECT count(*) as cnt FROM user_skills WHERE user_id = ? AND type = 'TEACHING'`).get(user.id) as { cnt: number };
+    const role = (user.id === 'admin') ? 'ADMIN' : (hasTeachingSkills?.cnt > 0 ? 'TEACHER' : 'LEARNER');
+
     return NextResponse.json({
       success: true,
       user: {
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
         state: user.state,
         balance: typeof user.balance === 'number' ? user.balance : (Number(user.balance) || 2.0),
         borrowingLimit: typeof user.borrowing_limit === 'number' ? user.borrowing_limit : (Number(user.borrowing_limit) || -1.0),
-        role: user.id === 'user-1' || user.id === 'user-2' ? 'TEACHER' : 'LEARNER',
+        role,
         reputationScore: user.reputation_score,
         trustLevel: user.trust_level,
         unreadNotifications: 1

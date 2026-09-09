@@ -1,4 +1,4 @@
-import db from './db';
+import db, { checkpointDB } from './db';
 
 export function calculateCreditCost(durationMinutes: number): number {
   // 15m = 0.25, 30m = 0.50, 45m = 0.75, 60m = 1.00, 90m = 1.50
@@ -160,6 +160,7 @@ export function executeAtomicCreditTransfer(sessionId: string): TransferResult {
 
   try {
     const txUniqueId = transferTx();
+    checkpointDB();
     return {
       success: true,
       message: `Time Credits transferred successfully (${creditAmount.toFixed(2)} Credits).`,
@@ -491,6 +492,7 @@ export function executeSessionCancellation(
 
   try {
     const res = cancelTx();
+    checkpointDB();
     return {
       success: true,
       message: `Session cancelled successfully. Credits decreased on cancelling user according to ${cancelledMinutes} mins cancelled time.`,

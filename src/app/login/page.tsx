@@ -77,7 +77,7 @@ function LoginContent() {
       const data = await res.json();
       if (data.success && data.user) {
         setCurrentUser(data.user);
-        refreshUserData();
+        await refreshUserData(data.user.id);
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
         router.push('/dashboard');
       } else {
@@ -127,7 +127,7 @@ function LoginContent() {
       const data = await res.json();
       if (data.success && data.user) {
         setCurrentUser(data.user);
-        refreshUserData();
+        await refreshUserData(data.user.id);
         confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
         router.push('/dashboard');
       } else {
