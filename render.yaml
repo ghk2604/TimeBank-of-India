@@ -2,7 +2,7 @@ services:
   - type: web
     name: timebank-india
     env: node
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
@@ -10,7 +10,9 @@ services:
         value: production
       - key: PORT
         value: 10000
-    disk:
-      name: timebank-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
+    # Note: To enable a persistent SSD disk for SQLite across container restarts,
+    # upgrade plan to 'starter' and uncomment the disk section below:
+    # disk:
+    #   name: timebank-data
+    #   mountPath: /opt/render/project/src/data
+    #   sizeGB: 1
