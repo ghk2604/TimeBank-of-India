@@ -142,7 +142,6 @@ export default function Footer() {
           <p>© {new Date().getFullYear()} TimeBank of India. Dedicated to the learners & educators of Bharat.</p>
           <div className="flex items-center gap-4 text-slate-400">
             <Link href="/about" className="hover:text-white">About Us</Link>
-            <Link href="/admin" className="hover:text-white">Admin Governance</Link>
             <span className="text-slate-600">|</span>
             <span className="text-orange-400 font-medium">Made with pride for India 🇮🇳</span>
           </div>

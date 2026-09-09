@@ -29,7 +29,7 @@ export default function Navbar() {
     { href: '/gap-detector', label: t.nav.gapDetector, icon: Search },
     { href: '/learning-paths', label: t.nav.learningPaths, icon: Layers },
     { href: '/knowledge-impact', label: t.nav.impact, icon: Zap },
-    { href: '/admin', label: t.nav.admin, icon: ShieldAlert },
+    ...(currentUser?.role === 'ADMIN' ? [{ href: '/admin', label: t.nav.admin, icon: ShieldAlert }] : []),
   ];
 
   return (
@@ -249,7 +249,7 @@ export default function Navbar() {
                       </span>
                     )}
                   </div>
-                  {DEMO_USERS.map((u) => (
+                  {DEMO_USERS.filter((u) => u.role !== 'ADMIN').map((u) => (
                     <button
                       key={u.id}
                       onClick={() => {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { 
   ShieldAlert, Users, Coins, CheckCircle2, XCircle, 
@@ -27,8 +28,10 @@ export default function AdminPortalPage() {
   };
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    if (currentUser?.role === 'ADMIN') {
+      loadAdminData();
+    }
+  }, [currentUser?.role]);
 
   const handleResolveDispute = async (disputeId: string, resolutionAction: 'TRANSFER' | 'REFUND' | 'DISMISS') => {
     try {
@@ -55,6 +58,32 @@ export default function AdminPortalPage() {
       alert(e.message);
     }
   };
+
+  // Restrict access for non-admin users
+  if (currentUser?.role !== 'ADMIN') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto shadow-sm">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+          Access Restricted
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+          The Admin Portal is restricted to authorized platform administrators and governance moderators only.
+        </p>
+        <div className="pt-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md transition-colors"
+          >
+            <span>Return to Home</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
