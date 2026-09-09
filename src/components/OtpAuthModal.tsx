@@ -5,7 +5,7 @@ import { useApp, DEMO_USERS, CurrentUser } from '@/context/AppContext';
 import { 
   Phone, Mail, Key, ShieldCheck, Sparkles, ArrowRight, 
   CheckCircle2, AlertCircle, RefreshCw, X, User, MapPin, 
-  BookOpen, Clock, HeartHandshake, Check
+  BookOpen, Clock, HeartHandshake, Check, Copy, MessageSquare, ChevronDown, ChevronUp
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -36,6 +36,10 @@ export default function OtpAuthModal({ isPageMode = false, onSuccess }: OtpAuthM
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [isExistingUser, setIsExistingUser] = useState<boolean>(false);
   const [existingUserName, setExistingUserName] = useState<string | null>(null);
+  const [realDeliverySuccess, setRealDeliverySuccess] = useState<boolean>(false);
+  const [realDeliveryProvider, setRealDeliveryProvider] = useState<string>('SIMULATED');
+  const [realDeliveryError, setRealDeliveryError] = useState<string | null>(null);
+  const [showGatewayInfo, setShowGatewayInfo] = useState<boolean>(false);
 
   // Countdown timer for OTP expiry
   const [timerSeconds, setTimerSeconds] = useState(600); // 10 minutes
@@ -114,15 +118,25 @@ export default function OtpAuthModal({ isPageMode = false, onSuccess }: OtpAuthM
       const data = await res.json();
       if (data.success) {
         setDevOtp(data.devOtp || null);
+        setRealDeliverySuccess(!!data.realDeliverySuccess);
+        setRealDeliveryProvider(data.realDeliveryProvider || 'SIMULATED');
+        setRealDeliveryError(data.realDeliveryError || null);
         setIsExistingUser(data.isExistingUser);
         setExistingUserName(data.existingUserName || null);
         setSuccessMsg(data.message);
         setTimerSeconds(600);
         setStep(2);
-        setOtpDigits(['', '', '', '', '', '']);
+        
+        // Auto-fill code into inputs immediately so the user can verify in 1 click!
+        if (data.devOtp) {
+          setOtpDigits(data.devOtp.split(''));
+        } else {
+          setOtpDigits(['', '', '', '', '', '']);
+        }
+
         setTimeout(() => {
-          otpRefs.current[0]?.focus();
-        }, 100);
+          otpRefs.current[5]?.focus();
+        }, 150);
       } else {
         setErrorMsg(data.error || 'Failed to send OTP. Please try again.');
       }
@@ -475,33 +489,85 @@ export default function OtpAuthModal({ isPageMode = false, onSuccess }: OtpAuthM
                 </button>
               </div>
 
-              {/* DEV / DEMO TESTING CODE BANNER */}
+              {/* REALISTIC IN-APP SMS / NOTIFICATION DELIVERY CARD */}
               {devOtp && (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-green-500/10 border-2 border-orange-400/50 space-y-2">
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 text-white shadow-xl border-2 border-orange-500/60 space-y-3.5 animate-in slide-in-from-top-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-orange-600 dark:text-orange-400 flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5" /> Instant Demo OTP
-                    </span>
-                    <span className="text-[10px] text-slate-500">Zero-Friction Testing</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-widest">
-                      {devOtp}
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-emerald-400" />
+                      <span className="text-[11px] font-mono uppercase tracking-wider font-extrabold text-emerald-400">
+                        {realDeliverySuccess ? `📲 SMS SENT VIA ${realDeliveryProvider}` : '📲 IN-APP SMS DELIVERY'}
+                      </span>
                     </div>
+                    <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">Delivered Just Now</span>
+                  </div>
+
+                  {/* SMS Body Bubble */}
+                  <div className="p-3.5 rounded-xl bg-slate-800/90 border border-slate-700 space-y-2 font-sans">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Sender: <strong className="text-slate-200">TBI-VERIFY (TimeBank of India)</strong></span>
+                      <span>To: <strong className="text-slate-200">{currentIdentifier}</strong></span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-100 font-medium">
+                      &quot;Your TimeBank of India verification code is <strong className="text-amber-400 font-mono text-base tracking-widest bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/40">{devOtp}</strong>. Valid for 10 minutes. Do not share with anyone.&quot;
+                    </p>
+                  </div>
+
+                  {/* 1-Click Fill & Copy Buttons */}
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
                     <button
                       type="button"
                       onClick={handleAutoFillOtp}
-                      className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-sm flex items-center gap-1 hover:scale-105 transition-transform"
+                      className="w-full sm:flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 hover:scale-[1.02] transition-transform"
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Auto-Fill Code</span>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Auto-Fill Code ({devOtp})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(devOtp);
+                        setSuccessMsg(`Copied OTP ${devOtp} to clipboard!`);
+                        setTimeout(() => setSuccessMsg(null), 3000);
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isExistingUser 
-                      ? `✨ Existing account detected (${existingUserName || 'Member'}). Verifying logs in instantly!`
-                      : '✨ New account! Verifying grants 1.0 Starter Time Credit.'}
-                  </p>
+
+                  {/* Handset notice */}
+                  {!realDeliverySuccess && (
+                    <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1">
+                      <div className="flex items-start gap-1.5 text-amber-300 font-semibold">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+                        <span>Why did your physical mobile handset not receive an SMS?</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-relaxed pl-5">
+                        Sending SMS to physical cell towers requires an external Indian telecom API key (e.g. <strong>Fast2SMS</strong> or <strong>Twilio</strong>). In this environment, the OTP has been delivered via in-app simulation above and has been auto-filled into the 6 boxes below so you can verify immediately!
+                      </p>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setShowGatewayInfo(!showGatewayInfo)}
+                        className="text-[10px] text-orange-400 font-bold hover:underline pl-5 flex items-center gap-1 pt-0.5"
+                      >
+                        <span>{showGatewayInfo ? 'Hide setup instructions' : 'How to enable real SMS to your phone?'}</span>
+                        {showGatewayInfo ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+
+                      {showGatewayInfo && (
+                        <div className="mt-2 p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] text-slate-300 space-y-1 font-mono">
+                          <p className="font-sans font-bold text-white">To send real SMS to Indian phones:</p>
+                          <p>1. Get a free Fast2SMS API key from <a href="https://www.fast2sms.com" target="_blank" rel="noreferrer" className="text-orange-400 underline">fast2sms.com</a></p>
+                          <p>2. Create a <code>.env.local</code> file in the project folder with:</p>
+                          <pre className="p-1.5 bg-black/60 rounded text-emerald-400">FAST2SMS_API_KEY=your_api_key_here</pre>
+                          <p className="text-slate-400 font-sans">Or configure <code>TWILIO_ACCOUNT_SID</code> and <code>TWILIO_AUTH_TOKEN</code>.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

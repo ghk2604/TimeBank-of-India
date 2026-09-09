@@ -62,16 +62,123 @@ export async function POST(request: Request) {
         `).get(cleanIdentifier, normalizedPhone || cleanIdentifier, phoneSearchTerm) as any;
       }
 
+      // Dispatch via Real SMS Gateway if configured
+      let realDeliverySuccess = false;
+      let realDeliveryProvider = 'SIMULATED';
+      let realDeliveryError: string | null = null;
+
+      if (!isEmail) {
+        // 1. Try Fast2SMS (India's premier SMS gateway)
+        if (process.env.FAST2SMS_API_KEY) {
+          try {
+            const rawDigits10 = cleanIdentifier.replace(/\D/g, '').slice(-10);
+            const fastRes = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+              method: 'POST',
+              headers: {
+                'authorization': process.env.FAST2SMS_API_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                variables_values: code,
+                route: 'otp',
+                numbers: rawDigits10,
+              }),
+            });
+            const fastData = await fastRes.json();
+            if (fastData.return) {
+              realDeliverySuccess = true;
+              realDeliveryProvider = 'Fast2SMS';
+            } else {
+              realDeliveryError = fastData.message?.[0] || 'Fast2SMS delivery error';
+            }
+          } catch (e: any) {
+            realDeliveryError = e.message;
+          }
+        } 
+        // 2. Try Twilio
+        else if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+          try {
+            const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
+            const authHeader = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+            const params = new URLSearchParams();
+            params.append('To', normalizedPhone);
+            params.append('From', process.env.TWILIO_PHONE_NUMBER);
+            params.append('Body', `[TimeBank of India] ${code} is your OTP verification code. Valid for 10 minutes.`);
+
+            const twRes = await fetch(twilioUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Basic ${authHeader}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: params.toString(),
+            });
+            const twData = await twRes.json();
+            if (twData.sid) {
+              realDeliverySuccess = true;
+              realDeliveryProvider = 'Twilio';
+            } else {
+              realDeliveryError = twData.message || 'Twilio delivery error';
+            }
+          } catch (e: any) {
+            realDeliveryError = e.message;
+          }
+        }
+      } else {
+        // Try Resend for Email
+        if (process.env.RESEND_API_KEY) {
+          try {
+            const resendRes = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                from: 'TimeBank of India <onboarding@resend.dev>',
+                to: cleanIdentifier,
+                subject: `Your TimeBank of India OTP: ${code}`,
+                html: `
+                  <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px;">
+                    <h2 style="color: #ea580c; margin-bottom: 8px;">🇮🇳 TimeBank of India</h2>
+                    <p style="color: #475569; font-size: 14px;">Your one-time verification code is:</p>
+                    <div style="font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #0f172a; margin: 16px 0; font-family: monospace;">
+                      ${code}
+                    </div>
+                    <p style="color: #64748b; font-size: 12px;">This code expires in 10 minutes. Do not share this code with anyone.</p>
+                  </div>
+                `,
+              }),
+            });
+            const resendData = await resendRes.json();
+            if (resendData.id) {
+              realDeliverySuccess = true;
+              realDeliveryProvider = 'Resend';
+            } else {
+              realDeliveryError = resendData.message || 'Email delivery failed';
+            }
+          } catch (e: any) {
+            realDeliveryError = e.message;
+          }
+        }
+      }
+
+      console.log(`[OTP DISPATCH] Identifier: ${cleanIdentifier} | Code: ${code} | Provider: ${realDeliveryProvider} | Success: ${realDeliverySuccess}`);
+
       return NextResponse.json({
         success: true,
-        message: `OTP sent successfully via ${otpType === 'EMAIL' ? 'Email' : 'SMS (+91)'} to ${cleanIdentifier}`,
+        message: realDeliverySuccess
+          ? `OTP sent to your physical handset via ${realDeliveryProvider} SMS to ${cleanIdentifier}`
+          : `OTP generated! In-App Simulated ${otpType === 'EMAIL' ? 'Email' : 'SMS'} ready for ${cleanIdentifier}`,
         type: otpType,
         identifier: cleanIdentifier,
         expiresAt,
         isExistingUser: !!existingUser,
         existingUserName: existingUser?.full_name,
-        // In development / demo mode, return the OTP so the user can test instantly without real SMS gateway fees!
         devOtp: code,
+        realDeliverySuccess,
+        realDeliveryProvider,
+        realDeliveryError,
       });
     } else if (action === 'VERIFY_OTP') {
       if (!identifier || !otpCode) {
