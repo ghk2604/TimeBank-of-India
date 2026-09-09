@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useApp } from '@/context/AppContext';
+import { useApp, DEMO_USERS } from '@/context/AppContext';
 import { broadcastRequestEvent } from '@/lib/realtime';
 import { 
   Search, Filter, Star, Clock, Globe, Award, Sparkles, 
@@ -378,7 +378,23 @@ function MarketplaceContent() {
                     <button
                       type="button"
                       onClick={() => {
-                        setCurrentUser(selectedTeacher);
+                        const demoMatch = DEMO_USERS.find(d => d.id === selectedTeacher.id);
+                        if (demoMatch) {
+                          setCurrentUser(demoMatch);
+                        } else {
+                          setCurrentUser({
+                            id: selectedTeacher.id,
+                            fullName: selectedTeacher.full_name || selectedTeacher.fullName || 'Teacher',
+                            username: selectedTeacher.username || selectedTeacher.id,
+                            avatar: selectedTeacher.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces',
+                            balance: typeof selectedTeacher.balance === 'number' ? selectedTeacher.balance : 3.0,
+                            borrowingLimit: -2.0,
+                            role: 'TEACHER',
+                            unreadNotifications: 1,
+                            city: selectedTeacher.city,
+                            state: selectedTeacher.state,
+                          });
+                        }
                         setBookingModalOpen(false);
                         setBookingSuccess(null);
                         router.push('/dashboard');
@@ -386,7 +402,7 @@ function MarketplaceContent() {
                       className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-green-600 text-white font-bold text-xs shadow hover:scale-105 transition-all flex items-center justify-center gap-1.5"
                     >
                       <UserCheck className="w-4 h-4" />
-                      <span>Switch to {selectedTeacher.full_name.split(' ')[0]} to Accept Now →</span>
+                      <span>Switch to {(selectedTeacher.full_name || selectedTeacher.fullName || 'Teacher').split(' ')[0]} to Accept Now →</span>
                     </button>
                   )}
                   <button

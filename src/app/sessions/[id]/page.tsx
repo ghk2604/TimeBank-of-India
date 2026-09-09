@@ -259,11 +259,11 @@ export default function LiveSessionRoomPage() {
     return <div className="p-12 text-center text-xs text-rose-500">Session not found.</div>;
   }
 
-  const isTeacher = session.teacher_id === currentUser.id;
+  const isTeacher = session.teacher_id === currentUser?.id;
   const counterpartyName = isTeacher ? session.learner_name : session.teacher_name;
   const counterpartyAvatar = isTeacher ? session.learner_avatar : session.teacher_avatar;
 
-  const goalOutcomes = session.expected_outcome
+  const goalOutcomes = typeof session.expected_outcome === 'string' && session.expected_outcome.trim().length > 0
     ? session.expected_outcome.split('\n').filter((s: string) => s.trim().length > 0)
     : ['Understand core concepts', 'Complete practical exercise', 'Review code together'];
 
@@ -285,7 +285,7 @@ export default function LiveSessionRoomPage() {
               </span>
               <span className="text-xs font-bold text-slate-400">•</span>
               <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                Cost: {session.credit_amount.toFixed(2)} Time Credit
+                Cost: {Number(session?.credit_amount ?? 0).toFixed(2)} Time Credit
               </span>
             </div>
             <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-0.5">
@@ -380,7 +380,7 @@ export default function LiveSessionRoomPage() {
               Transaction ID: <strong className="font-mono text-amber-400">{cancellationResult.transactionId}</strong>
             </p>
             <p className="text-xs text-slate-300">
-              Delivered: {cancellationResult.actualMinutesTaught} mins taught • Cancelled: {cancellationResult.cancelledMinutes} mins unfulfilled • Deduction: -{cancellationResult.cancellationDeduction?.toFixed(2)} Time Credits
+              Delivered: {cancellationResult.actualMinutesTaught} mins taught • Cancelled: {cancellationResult.cancelledMinutes} mins unfulfilled • Deduction: -{Number(cancellationResult.cancellationDeduction || 0).toFixed(2)} Time Credits
             </p>
           </div>
           <button
@@ -404,7 +404,7 @@ export default function LiveSessionRoomPage() {
               Transaction ID: <strong className="font-mono">{transferResult.transactionId}</strong>
             </p>
             <p className="text-xs text-white/90">
-              {session.credit_amount.toFixed(2)} Time Credits transferred cleanly with SQLite ACID rollback guarantee.
+              {Number(session?.credit_amount ?? 0).toFixed(2)} Time Credits transferred cleanly with SQLite ACID rollback guarantee.
             </p>
           </div>
           <button
@@ -438,7 +438,7 @@ export default function LiveSessionRoomPage() {
               </span>
             </div>
             <p className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
-              📅 {session.start_time || 'Scheduled Session'} • ⏱️ {session.duration} Mins ({session.credit_amount.toFixed(2)} Time Credits)
+              📅 {session.start_time || 'Scheduled Session'} • ⏱️ {session.duration || 60} Mins ({Number(session?.credit_amount ?? 0).toFixed(2)} Time Credits)
             </p>
           </div>
         </div>
@@ -468,7 +468,7 @@ export default function LiveSessionRoomPage() {
                 {timerActive ? '⏸ Pause Timer' : '▶ Resume Timer'}
               </button>
               <button
-                onClick={() => setTimerSeconds(session.duration * 60)}
+                onClick={() => setTimerSeconds((session.duration || 60) * 60)}
                 className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200"
                 title="Reset session timer"
               >
@@ -480,7 +480,8 @@ export default function LiveSessionRoomPage() {
           {(session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS') && (
             <button
               onClick={() => {
-                const autoMins = Math.max(0, Math.min(session.duration, Math.round(((session.duration * 60) - timerSeconds) / 60)));
+                const totalMins = Number(session.duration || 60);
+                const autoMins = Math.max(0, Math.min(totalMins, Math.round(((totalMins * 60) - timerSeconds) / 60)));
                 setActualMinutesTaughtInput(autoMins || 15);
                 setCancelModalOpen(true);
               }}
@@ -532,7 +533,11 @@ export default function LiveSessionRoomPage() {
 
               {/* Self view pip */}
               <div className="absolute bottom-2 right-2 w-24 h-20 rounded-2xl bg-slate-800 border-2 border-slate-700 overflow-hidden shadow-lg flex items-center justify-center">
-                <img src={currentUser.avatar} alt={currentUser.fullName} className="w-full h-full object-cover" />
+                <img 
+                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'} 
+                  alt={currentUser?.fullName || 'User'} 
+                  className="w-full h-full object-cover" 
+                />
               </div>
             </div>
 
@@ -580,7 +585,8 @@ export default function LiveSessionRoomPage() {
               {(session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS') && (
                 <button
                   onClick={() => {
-                    const autoMins = Math.max(0, Math.min(session.duration, Math.round(((session.duration * 60) - timerSeconds) / 60)));
+                    const totalMins = Number(session?.duration || 60);
+                    const autoMins = Math.max(0, Math.min(totalMins, Math.round(((totalMins * 60) - timerSeconds) / 60)));
                     setActualMinutesTaughtInput(autoMins || 15);
                     setCancelModalOpen(true);
                   }}
@@ -708,7 +714,7 @@ export default function LiveSessionRoomPage() {
                     className="w-full py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
                   >
                     <Coins className="w-4 h-4" />
-                    <span>Confirm Outcome & Release Credits ({session.credit_amount.toFixed(2)} Cr)</span>
+                    <span>Confirm Outcome & Release Credits ({Number(session?.credit_amount ?? 0).toFixed(2)} Cr)</span>
                   </button>
                 )}
               </div>
@@ -908,14 +914,14 @@ export default function LiveSessionRoomPage() {
                     Minutes Actually Taught / Completed:
                   </span>
                   <span className="font-black text-sm px-2.5 py-0.5 rounded-lg bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300">
-                    {actualMinutesTaughtInput} / {session.duration} mins
+                    {actualMinutesTaughtInput} / {session?.duration || 60} mins
                   </span>
                 </div>
 
                 <input
                   type="range"
                   min={0}
-                  max={session.duration}
+                  max={session?.duration || 60}
                   step={1}
                   value={actualMinutesTaughtInput}
                   onChange={(e) => setActualMinutesTaughtInput(Number(e.target.value))}
@@ -924,8 +930,8 @@ export default function LiveSessionRoomPage() {
 
                 <div className="flex items-center justify-between text-[11px] text-slate-500">
                   <span>0 mins (Just started)</span>
-                  <span>{Math.round(session.duration / 2)} mins</span>
-                  <span>{session.duration} mins (Full)</span>
+                  <span>{Math.round((session?.duration || 60) / 2)} mins</span>
+                  <span>{session?.duration || 60} mins (Full)</span>
                 </div>
 
                 {/* Prorated Breakdown Cards */}
@@ -938,10 +944,10 @@ export default function LiveSessionRoomPage() {
                   </div>
                   <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     <span className="text-[10px] text-slate-400 block font-semibold">
-                      Cancelled ({Math.max(0, session.duration - actualMinutesTaughtInput)}m)
+                      Cancelled ({Math.max(0, (session?.duration || 60) - actualMinutesTaughtInput)}m)
                     </span>
                     <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">
-                      {(Math.max(0, session.duration - actualMinutesTaughtInput) / 60).toFixed(2)} Time Cr
+                      {(Math.max(0, (session?.duration || 60) - actualMinutesTaughtInput) / 60).toFixed(2)} Time Cr
                     </span>
                   </div>
                 </div>
@@ -953,8 +959,8 @@ export default function LiveSessionRoomPage() {
                   </span>
                   <span className="font-black text-rose-700 dark:text-rose-400 text-sm">
                     {isTeacher
-                      ? `-${Math.max(0, (session.duration - actualMinutesTaughtInput) / 60 - actualMinutesTaughtInput / 60).toFixed(2)} Time Credits`
-                      : `-${((actualMinutesTaughtInput + Math.max(0, session.duration - actualMinutesTaughtInput)) / 60).toFixed(2)} Time Credits`
+                      ? `-${Math.max(0, ((session?.duration || 60) - actualMinutesTaughtInput) / 60 - actualMinutesTaughtInput / 60).toFixed(2)} Time Credits`
+                      : `-${((actualMinutesTaughtInput + Math.max(0, (session?.duration || 60) - actualMinutesTaughtInput)) / 60).toFixed(2)} Time Credits`
                     }
                   </span>
                 </div>

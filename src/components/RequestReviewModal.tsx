@@ -27,10 +27,11 @@ export default function RequestReviewModal({
 
   const deadline = request.response_deadline ? new Date(request.response_deadline).getTime() : 0;
   const now = Date.now();
-  const remainingHours = Math.max(0, Math.floor((deadline - now) / (1000 * 3600)));
-  const remainingMins = Math.max(0, Math.floor(((deadline - now) % (1000 * 3600)) / (1000 * 60)));
+  const diff = deadline > 0 ? Math.max(0, deadline - now) : 24 * 3600 * 1000;
+  const remainingHours = isNaN(diff) ? 24 : Math.floor(diff / (1000 * 3600));
+  const remainingMins = isNaN(diff) ? 0 : Math.floor((diff % (1000 * 3600)) / (1000 * 60));
 
-  const outcomes = request.expected_outcome
+  const outcomes = typeof request.expected_outcome === 'string' && request.expected_outcome.trim().length > 0
     ? request.expected_outcome.split('\n').filter((s: string) => s.trim().length > 0)
     : [
         'Master foundational concepts and practical implementation.',

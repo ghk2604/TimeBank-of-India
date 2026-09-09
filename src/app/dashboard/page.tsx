@@ -264,10 +264,10 @@ export default function DashboardPage() {
         <div className="p-6 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-orange-500/10 border border-rose-300 dark:border-rose-900/60 shadow-sm space-y-3">
           <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-bold text-sm">
             <AlertTriangle className="w-5 h-5" />
-            <span>Credit Recovery System Active (Negative Balance: {currentUser.balance.toFixed(2)} Credits)</span>
+            <span>Credit Recovery System Active (Negative Balance: {Number(currentUser?.balance ?? 0).toFixed(2)} Credits)</span>
           </div>
           <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-            You currently have a negative balance of <strong>{currentUser.balance.toFixed(2)} Credits</strong>. Don&apos;t worry! TimeBank of India helps you recover your balance by teaching skills you know.
+            You currently have a negative balance of <strong>{Number(currentUser?.balance ?? 0).toFixed(2)} Credits</strong>. Don&apos;t worry! TimeBank of India helps you recover your balance by teaching skills you know.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             {recovery.recommendations?.map((rec: any) => (
@@ -298,10 +298,10 @@ export default function DashboardPage() {
             <Coins className="w-4 h-4 text-orange-500" />
           </div>
           <div className="my-2">
-            <div className={`text-2xl font-black ${currentUser.balance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
-              {currentUser.balance > 0 ? `+${currentUser.balance.toFixed(2)}` : currentUser.balance.toFixed(2)} <span className="text-xs font-normal text-slate-400">Credits</span>
+            <div className={`text-2xl font-black ${Number(currentUser?.balance ?? 0) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+              {Number(currentUser?.balance ?? 0) > 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)} <span className="text-xs font-normal text-slate-400">Credits</span>
             </div>
-            <p className="text-[11px] text-slate-400">Borrowing Limit: {currentUser.borrowingLimit.toFixed(2)} Cr</p>
+            <p className="text-[11px] text-slate-400">Borrowing Limit: {Number(currentUser?.borrowingLimit ?? -1.0).toFixed(2)} Cr</p>
           </div>
           <Link href="/wallet" className="text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
             <span>View Time Wallet</span>
@@ -480,10 +480,11 @@ export default function DashboardPage() {
             {incomingTeacherRequests.filter(r => r.status === 'PENDING').length > 0 ? (
               <div className="space-y-3">
                 {incomingTeacherRequests.filter(r => r.status === 'PENDING').map((req) => {
-                  const deadline = new Date(req.response_deadline).getTime();
+                  const deadline = req.response_deadline ? new Date(req.response_deadline).getTime() : 0;
                   const now = Date.now();
-                  const remainingHours = Math.max(0, Math.floor((deadline - now) / (1000 * 3600)));
-                  const remainingMins = Math.max(0, Math.floor(((deadline - now) % (1000 * 3600)) / (1000 * 60)));
+                  const diff = deadline > 0 ? Math.max(0, deadline - now) : 24 * 3600 * 1000;
+                  const remainingHours = isNaN(diff) ? 24 : Math.floor(diff / (1000 * 3600));
+                  const remainingMins = isNaN(diff) ? 0 : Math.floor((diff % (1000 * 3600)) / (1000 * 60));
 
                   return (
                     <div

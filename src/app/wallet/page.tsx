@@ -58,10 +58,10 @@ export default function WalletPage() {
         <div className="p-6 rounded-3xl bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-orange-500/15 border-2 border-rose-300 dark:border-rose-900 shadow-md space-y-4">
           <div className="flex items-center gap-2.5 text-rose-700 dark:text-rose-400 font-extrabold text-base">
             <AlertTriangle className="w-6 h-6 animate-bounce" />
-            <span>Credit Recovery Engine Active (Deficit: {currentUser.balance.toFixed(2)} Credits)</span>
+            <span>Credit Recovery Engine Active (Deficit: {Number(currentUser?.balance ?? 0).toFixed(2)} Credits)</span>
           </div>
           <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            Your current balance is negative ({currentUser.balance.toFixed(2)} Credits). TimeBank of India never locks you out; instead, we recommend teaching verified skills to recover your balance:
+            Your current balance is negative ({Number(currentUser?.balance ?? 0).toFixed(2)} Credits). TimeBank of India never locks you out; instead, we recommend teaching verified skills to recover your balance:
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
@@ -98,8 +98,8 @@ export default function WalletPage() {
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Balance</span>
           <div className="my-3">
-            <div className={`text-3xl font-black ${currentUser.balance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
-              {currentUser.balance > 0 ? `+${currentUser.balance.toFixed(2)}` : currentUser.balance.toFixed(2)}
+            <div className={`text-3xl font-black ${Number(currentUser?.balance ?? 0) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+              {Number(currentUser?.balance ?? 0) > 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Time Credits</p>
           </div>
@@ -114,12 +114,12 @@ export default function WalletPage() {
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Borrowing Limit</span>
           <div className="my-3">
             <div className="text-3xl font-black text-slate-900 dark:text-white">
-              {walletData?.borrowing_limit?.toFixed(2) || '-2.00'}
+              {Number(walletData?.borrowing_limit ?? -2.0).toFixed(2)}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Max negative allowed</p>
           </div>
           <div className="text-[11px] text-slate-500 font-medium">
-            Tier: <strong>{currentUser.borrowingLimit <= -3 ? 'Trusted User' : 'Verified User'}</strong>
+            Tier: <strong>{Number(currentUser?.borrowingLimit ?? -1.0) <= -3 ? 'Trusted User' : 'Verified User'}</strong>
           </div>
         </div>
 
@@ -128,12 +128,12 @@ export default function WalletPage() {
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Credits Earned</span>
           <div className="my-3">
             <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
-              +{walletData?.total_earned?.toFixed(2) || '0.00'}
+              +{Number(walletData?.total_earned ?? 0).toFixed(2)}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Through teaching peers</p>
           </div>
           <div className="text-[11px] text-slate-500">
-            Equivalent to {walletData?.total_earned ? (walletData.total_earned).toFixed(1) : 0} teaching hours
+            Equivalent to {Number(walletData?.total_earned ?? 0).toFixed(1)} teaching hours
           </div>
         </div>
 
@@ -142,7 +142,7 @@ export default function WalletPage() {
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Credits Invested</span>
           <div className="my-3">
             <div className="text-3xl font-black text-blue-600 dark:text-blue-400">
-              -{walletData?.total_spent?.toFixed(2) || '0.00'}
+              -{Number(walletData?.total_spent ?? 0).toFixed(2)}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Invested in personal learning</p>
           </div>
@@ -243,7 +243,7 @@ export default function WalletPage() {
                                 : 'text-rose-600 dark:text-rose-400'
                             }
                           >
-                            {isEarned ? `+${tx.credit_amount.toFixed(2)}` : `-${tx.credit_amount.toFixed(2)}`} Cr
+                            {isEarned ? `+${Number(tx?.credit_amount ?? 0).toFixed(2)}` : `-${Number(tx?.credit_amount ?? 0).toFixed(2)}`} Cr
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">

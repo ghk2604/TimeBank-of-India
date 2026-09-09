@@ -114,7 +114,7 @@ export default function AdminPortalPage() {
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Credits Circulated</span>
           <div className="text-2xl sm:text-3xl font-black text-orange-600 dark:text-orange-400 mt-1">
-            {adminData?.stats?.total_credits_circulated?.toFixed(2) || '24.50'} Cr
+            {Number(adminData?.stats?.total_credits_circulated ?? 24.5).toFixed(2)} Cr
           </div>
           <span className="text-[11px] text-slate-500 mt-1 block">100% Non-monetary time tokens</span>
         </div>
@@ -231,7 +231,7 @@ export default function AdminPortalPage() {
                     <td className="p-3.5 text-slate-600 dark:text-slate-300">{tx.learner_name || 'N/A'}</td>
                     <td className="p-3.5 text-slate-500">{tx.description}</td>
                     <td className="p-3.5 text-right font-black text-emerald-600 dark:text-emerald-400">
-                      +{tx.credit_amount.toFixed(2)} Cr
+                      +{Number(tx?.credit_amount ?? 0).toFixed(2)} Cr
                     </td>
                     <td className="p-3.5 text-center">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">

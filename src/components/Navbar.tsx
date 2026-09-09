@@ -90,14 +90,14 @@ export default function Navbar() {
             <Link
               href="/wallet"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                currentUser.balance < 0
+                Number(currentUser?.balance ?? 0) < 0
                   ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800 animate-pulse'
                   : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
               }`}
               title="Your current Time Credit wallet balance"
             >
               <Coins className="w-4 h-4" />
-              <span>{currentUser.balance > 0 ? `+${currentUser.balance.toFixed(2)}` : currentUser.balance.toFixed(2)}</span>
+              <span>{Number(currentUser?.balance ?? 0) > 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)}</span>
               <span className="hidden sm:inline font-normal text-[11px] opacity-80">Credits</span>
             </Link>
 
@@ -223,16 +223,16 @@ export default function Navbar() {
                 className="flex items-center gap-2 p-1 pl-2 pr-2.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
               >
                 <img
-                  src={currentUser.avatar}
-                  alt={currentUser.fullName}
+                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'}
+                  alt={currentUser?.fullName || 'User'}
                   className="w-7 h-7 rounded-full object-cover border border-white dark:border-slate-800"
                 />
                 <div className="text-left hidden md:block">
                   <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-none">
-                    {currentUser.fullName.split(' ')[0]}
+                    {(currentUser?.fullName || currentUser?.username || 'User').split(' ')[0]}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">
-                    {currentUser.role}
+                    {currentUser?.role || 'LEARNER'}
                   </p>
                 </div>
               </button>
@@ -257,7 +257,7 @@ export default function Navbar() {
                         setUserDropdownOpen(false);
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
-                        currentUser.id === u.id ? 'bg-orange-50/70 dark:bg-orange-950/30' : ''
+                        currentUser?.id === u.id ? 'bg-orange-50/70 dark:bg-orange-950/30' : ''
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
@@ -271,7 +271,7 @@ export default function Navbar() {
                           </p>
                         </div>
                       </div>
-                      {currentUser.id === u.id && (
+                      {currentUser?.id === u.id && (
                         <CheckCircle2 className="w-4 h-4 text-orange-500" />
                       )}
                     </button>

@@ -111,13 +111,13 @@ export default function SkillPassportPage() {
             <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Teaching Hours</span>
               <span className="text-xl font-black text-green-400">
-                {userData?.wallet ? (userData.wallet.total_earned).toFixed(1) : '12.0'} Hrs
+                {userData?.wallet ? Number(userData.wallet.total_earned || 0).toFixed(1) : '12.0'} Hrs
               </span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
               <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Time Credits</span>
               <span className="text-xl font-black text-amber-400">
-                {currentUser.balance > 0 ? `+${currentUser.balance.toFixed(2)}` : currentUser.balance.toFixed(2)}
+                {Number(currentUser?.balance ?? 0) > 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)}
               </span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">

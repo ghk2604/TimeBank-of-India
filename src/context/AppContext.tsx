@@ -117,6 +117,39 @@ export const DEMO_USERS: CurrentUser[] = [
   }
 ];
 
+export function normalizeUser(rawUser: any): CurrentUser {
+  if (!rawUser || typeof rawUser !== 'object') {
+    return DEMO_USERS[0];
+  }
+  const id = rawUser.id || 'user-1';
+  const fullName = rawUser.fullName || rawUser.full_name || rawUser.name || 'User';
+  const username = rawUser.username || id;
+  const avatar = rawUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces';
+  const balance = typeof rawUser.balance === 'number' ? rawUser.balance : (Number(rawUser.balance) || 0);
+  const borrowingLimit = typeof rawUser.borrowingLimit === 'number'
+    ? rawUser.borrowingLimit
+    : (typeof rawUser.borrowing_limit === 'number' ? rawUser.borrowing_limit : (Number(rawUser.borrowingLimit || rawUser.borrowing_limit) || -1.0));
+  const role = (rawUser.role === 'TEACHER' || rawUser.role === 'ADMIN') ? rawUser.role : 'LEARNER';
+  const unreadNotifications = typeof rawUser.unreadNotifications === 'number' ? rawUser.unreadNotifications : 0;
+
+  return {
+    id,
+    fullName,
+    username,
+    avatar,
+    balance,
+    borrowingLimit,
+    role,
+    unreadNotifications,
+    email: rawUser.email,
+    phone: rawUser.phone,
+    city: rawUser.city,
+    state: rawUser.state,
+    reputationScore: rawUser.reputationScore || rawUser.reputation_score || 75,
+    trustLevel: rawUser.trustLevel || rawUser.trust_level || 'Active Member',
+  };
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -129,7 +162,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingIncomingRequests, setPendingIncomingRequests] = useState<any[]>([]);
 
   const refreshRequests = useCallback(async (targetUserId?: string) => {
-    const uid = targetUserId || currentUser.id;
+    const uid = targetUserId || currentUser?.id;
     if (!uid) return;
     try {
       const res = await fetch(`/api/requests?userId=${uid}`, {
@@ -146,38 +179,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // Silently catch background poll error
     }
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
-    // Check local storage or system preference
-    const savedLang = localStorage.getItem('tbi_lang') as Language;
-    if (savedLang && ['en', 'hi', 'te'].includes(savedLang)) {
-      setLangState(savedLang);
-    }
+    try {
+      // Check local storage or system preference
+      const savedLang = localStorage.getItem('tbi_lang') as Language;
+      if (savedLang && ['en', 'hi', 'te'].includes(savedLang)) {
+        setLangState(savedLang);
+      }
 
-    const savedTheme = localStorage.getItem('tbi_theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add('dark');
-    } else {
-      setIsDarkMode(false);
-      document.documentElement.classList.remove('dark');
-    }
+      const savedTheme = localStorage.getItem('tbi_theme');
+      if (savedTheme === 'dark' || (!savedTheme && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        setIsDarkMode(true);
+        document.documentElement.classList.add('dark');
+      } else {
+        setIsDarkMode(false);
+        document.documentElement.classList.remove('dark');
+      }
 
-    // Check authentication state
-    const savedAuth = localStorage.getItem('tbi_is_authenticated');
-    const savedUser = localStorage.getItem('tbi_user');
+      // Check authentication state
+      const savedAuth = localStorage.getItem('tbi_is_authenticated');
+      const savedUser = localStorage.getItem('tbi_user');
 
-    if (savedAuth === 'true' && savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        setCurrentUserState(parsed);
-        setIsLoggedIn(true);
-      } catch (e) {
+      if (savedAuth === 'true' && savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          const normalized = normalizeUser(parsed);
+          setCurrentUserState(normalized);
+          setIsLoggedIn(true);
+        } catch (e) {
+          setIsLoggedIn(false);
+          setCurrentUserState(DEMO_USERS[0]);
+        }
+      } else {
         setIsLoggedIn(false);
       }
-    } else {
-      setIsLoggedIn(false);
+    } catch (err) {
+      console.warn('LocalStorage access warning:', err);
     }
 
     refreshUserData();
@@ -204,37 +243,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(intervalId);
       unsubscribe();
     };
-  }, [currentUser.id, refreshRequests]);
+  }, [currentUser?.id, refreshRequests]);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
-    localStorage.setItem('tbi_lang', newLang);
+    try {
+      localStorage.setItem('tbi_lang', newLang);
+    } catch (e) {}
   };
 
-  const login = (user: CurrentUser) => {
-    setCurrentUserState(user);
+  const login = (user: any) => {
+    const normalized = normalizeUser(user);
+    setCurrentUserState(normalized);
     setIsLoggedIn(true);
     setShowAuthModal(false);
-    localStorage.setItem('tbi_is_authenticated', 'true');
-    localStorage.setItem('tbi_user', JSON.stringify(user));
-    refreshRequests(user.id);
+    try {
+      localStorage.setItem('tbi_is_authenticated', 'true');
+      localStorage.setItem('tbi_user', JSON.stringify(normalized));
+    } catch (e) {}
+    refreshRequests(normalized.id);
   };
 
   const logout = () => {
     setIsLoggedIn(false);
-    localStorage.removeItem('tbi_is_authenticated');
-    localStorage.removeItem('tbi_user');
+    try {
+      localStorage.removeItem('tbi_is_authenticated');
+      localStorage.removeItem('tbi_user');
+    } catch (e) {}
     setCurrentUserState(DEMO_USERS[0]);
     setShowAuthModal(false);
     setPendingIncomingRequests([]);
   };
 
-  const setCurrentUser = (user: CurrentUser) => {
-    setCurrentUserState(user);
+  const setCurrentUser = (user: any) => {
+    const normalized = normalizeUser(user);
+    setCurrentUserState(normalized);
     setIsLoggedIn(true);
-    localStorage.setItem('tbi_is_authenticated', 'true');
-    localStorage.setItem('tbi_user', JSON.stringify(user));
-    refreshRequests(user.id);
+    try {
+      localStorage.setItem('tbi_is_authenticated', 'true');
+      localStorage.setItem('tbi_user', JSON.stringify(normalized));
+    } catch (e) {}
+    refreshRequests(normalized.id);
   };
 
   const toggleDarkMode = () => {
@@ -242,10 +291,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const next = !prev;
       if (next) {
         document.documentElement.classList.add('dark');
-        localStorage.setItem('tbi_theme', 'dark');
+        try { localStorage.setItem('tbi_theme', 'dark'); } catch (e) {}
       } else {
         document.documentElement.classList.remove('dark');
-        localStorage.setItem('tbi_theme', 'light');
+        try { localStorage.setItem('tbi_theme', 'light'); } catch (e) {}
       }
       return next;
     });
@@ -253,15 +302,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUserData = async () => {
     try {
-      const res = await fetch(`/api/users/${currentUser.id}`, { cache: 'no-store' });
+      const targetId = currentUser?.id;
+      if (!targetId) return;
+      const res = await fetch(`/api/users/${targetId}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.user && data.wallet) {
           setCurrentUserState(prev => ({
             ...prev,
-            balance: data.wallet.balance,
-            borrowingLimit: data.wallet.borrowing_limit,
-            unreadNotifications: data.unreadNotifications || 0
+            fullName: data.user.full_name || prev.fullName || 'User',
+            balance: typeof data.wallet.balance === 'number' ? data.wallet.balance : (Number(data.wallet.balance) || prev.balance),
+            borrowingLimit: typeof data.wallet.borrowing_limit === 'number' ? data.wallet.borrowing_limit : (Number(data.wallet.borrowing_limit) || prev.borrowingLimit),
+            unreadNotifications: typeof data.unreadNotifications === 'number' ? data.unreadNotifications : prev.unreadNotifications
           }));
         }
       }

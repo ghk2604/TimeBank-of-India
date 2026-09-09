@@ -149,10 +149,11 @@ export default function SessionsListPage() {
 
           <div className="space-y-3">
             {pendingIncomingRequests.map((req) => {
-              const deadline = new Date(req.response_deadline).getTime();
+              const deadline = req.response_deadline ? new Date(req.response_deadline).getTime() : 0;
               const now = Date.now();
-              const remainingHours = Math.max(0, Math.floor((deadline - now) / (1000 * 3600)));
-              const remainingMins = Math.max(0, Math.floor(((deadline - now) % (1000 * 3600)) / (1000 * 60)));
+              const diff = deadline > 0 ? Math.max(0, deadline - now) : 24 * 3600 * 1000;
+              const remainingHours = isNaN(diff) ? 24 : Math.floor(diff / (1000 * 3600));
+              const remainingMins = isNaN(diff) ? 0 : Math.floor((diff % (1000 * 3600)) / (1000 * 60));
 
               return (
                 <div
@@ -285,7 +286,7 @@ export default function SessionsListPage() {
                     <div className="flex flex-wrap items-center gap-3 text-xs pt-1">
                       <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-1 rounded-lg border border-orange-200 dark:border-orange-900/60">
                         <Calendar className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                        <span>Timings: {session.start_time || new Date(session.created_at).toLocaleDateString()}</span>
+                        <span>Timings: {session.start_time || (session.created_at ? session.created_at.slice(0, 10) : 'Today')}</span>
                       </span>
                       <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -293,7 +294,7 @@ export default function SessionsListPage() {
                       </span>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                         <Coins className="w-3.5 h-3.5" />
-                        <span>{session.credit_amount.toFixed(2)} Time Credits</span>
+                        <span>{Number(session?.credit_amount ?? 0).toFixed(2)} Time Credits</span>
                       </span>
                     </div>
                   </div>
