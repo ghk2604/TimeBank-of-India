@@ -87,232 +87,245 @@ export default function Navbar() {
 
           {/* Right Action Controls */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Live Wallet Balance Pill */}
-            <Link
-              href="/wallet"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                Number(currentUser?.balance ?? 0) < 0
-                  ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800 animate-pulse'
-                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-              }`}
-              title="Your current Time Credit wallet balance"
-            >
-              <Coins className="w-4 h-4" />
-              <span>{Number(currentUser?.balance ?? 0) > 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)}</span>
-              <span className="hidden sm:inline font-normal text-[11px] opacity-80">Credits</span>
-            </Link>
+            {/* Right Action Controls: Logged In vs Logged Out */}
+            {isLoggedIn ? (
+              <>
+                {/* Live Wallet Balance Pill */}
+                <Link
+                  href="/wallet"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                    Number(currentUser?.balance ?? 0) < 0
+                      ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800 animate-pulse'
+                      : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                  }`}
+                  title="Your current Time Credit wallet balance"
+                >
+                  <Coins className="w-4 h-4" />
+                  <span>{Number(currentUser?.balance ?? 0) > 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)}</span>
+                  <span className="hidden sm:inline font-normal text-[11px] opacity-80">Credits</span>
+                </Link>
 
-            {/* Direct Login & Registration Link */}
-            <Link
-              href="/login"
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-green-600 hover:from-orange-600 hover:to-green-700 text-white text-xs font-bold shadow-sm hover:scale-105 transition-all"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Sign In / Register</span>
-            </Link>
-
-            {/* Instant Notification Bell & Incoming Requests Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setNotifDropdownOpen(!notifDropdownOpen);
-                  setUserDropdownOpen(false);
-                  setLangDropdownOpen(false);
-                }}
-                className={`relative p-2 rounded-full transition-colors ${
-                  pendingIncomingRequests.length > 0
-                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 hover:bg-amber-200'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Notifications & Session Requests"
-              >
-                <Bell className="w-4 h-4" />
-                {pendingIncomingRequests.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow animate-bounce">
-                    {pendingIncomingRequests.length}
-                  </span>
-                )}
-              </button>
-
-              {notifDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>Incoming Requests</span>
-                        {pendingIncomingRequests.length > 0 && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
-                            {pendingIncomingRequests.length} Active
-                          </span>
-                        )}
-                      </h4>
-                      <p className="text-[10px] text-slate-400">Respond within 24 hours</p>
-                    </div>
-                    <Link
-                      href="/dashboard"
-                      onClick={() => setNotifDropdownOpen(false)}
-                      className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline"
-                    >
-                      View All
-                    </Link>
-                  </div>
-
-                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
-                    {pendingIncomingRequests.length > 0 ? (
-                      pendingIncomingRequests.map((req) => (
-                        <div key={req.id} className="p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors space-y-2">
-                          <div className="flex items-start gap-2.5">
-                            <img
-                              src={req.learner_avatar}
-                              alt={req.learner_name}
-                              className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {req.learner_name}
-                              </p>
-                              <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                                Wants to learn: <span className="text-orange-600 dark:text-orange-400 font-bold">{req.skill_name}</span>
-                              </p>
-                              <p className="text-[10px] text-slate-400">
-                                {req.duration} mins • Earns +{req.credit_cost} Time Credit
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-1">
-                            <Link
-                              href="/sessions"
-                              onClick={() => setNotifDropdownOpen(false)}
-                              className="flex-1 py-1.5 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Check & Review Details</span>
-                            </Link>
-                            <button
-                              onClick={async () => {
-                                await declineSessionRequest(req.id);
-                              }}
-                              className="py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors"
-                              title="Decline Request"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              <span className="sr-only">Decline</span>
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-6 text-center text-xs text-slate-400 space-y-1">
-                        <CheckCircle2 className="w-6 h-6 mx-auto text-emerald-500 opacity-80" />
-                        <p className="font-semibold text-slate-600 dark:text-slate-300">All Caught Up!</p>
-                        <p className="text-[11px]">No pending session requests at the moment.</p>
-                      </div>
+                {/* Instant Notification Bell & Incoming Requests Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setNotifDropdownOpen(!notifDropdownOpen);
+                      setUserDropdownOpen(false);
+                      setLangDropdownOpen(false);
+                    }}
+                    className={`relative p-2 rounded-full transition-colors ${
+                      pendingIncomingRequests.length > 0
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 hover:bg-amber-200'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title="Notifications & Session Requests"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {pendingIncomingRequests.length > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow animate-bounce">
+                        {pendingIncomingRequests.length}
+                      </span>
                     )}
-                  </div>
-                </div>
-              )}
-            </div>
+                  </button>
 
-            {/* Persona Switcher Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setUserDropdownOpen(!userDropdownOpen);
-                  setLangDropdownOpen(false);
-                }}
-                className="flex items-center gap-2 p-1 pl-2 pr-2.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
-              >
-                <img
-                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'}
-                  alt={currentUser?.fullName || 'User'}
-                  className="w-7 h-7 rounded-full object-cover border border-white dark:border-slate-800"
-                />
-                <div className="text-left hidden md:block">
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-none">
-                    {(currentUser?.fullName || currentUser?.username || 'User').split(' ')[0]}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">
-                    {currentUser?.role || 'LEARNER'}
-                  </p>
-                </div>
-              </button>
+                  {notifDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>Incoming Requests</span>
+                            {pendingIncomingRequests.length > 0 && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                {pendingIncomingRequests.length} Active
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-[10px] text-slate-400">Respond within 24 hours</p>
+                        </div>
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setNotifDropdownOpen(false)}
+                          className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline"
+                        >
+                          View All
+                        </Link>
+                      </div>
 
-              {userDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 py-3 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+                      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                        {pendingIncomingRequests.length > 0 ? (
+                          pendingIncomingRequests.map((req) => (
+                            <div key={req.id} className="p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors space-y-2">
+                              <div className="flex items-start gap-2.5">
+                                <img
+                                  src={req.learner_avatar}
+                                  alt={req.learner_name}
+                                  className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                    {req.learner_name}
+                                  </p>
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                                    Wants to learn: <span className="text-orange-600 dark:text-orange-400 font-bold">{req.skill_name}</span>
+                                  </p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {req.duration} mins • Earns +{req.credit_cost} Time Credit
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <Link
+                                  href="/sessions"
+                                  onClick={() => setNotifDropdownOpen(false)}
+                                  className="flex-1 py-1.5 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Check & Review Details</span>
+                                </Link>
+                                <button
+                                  onClick={async () => {
+                                    await declineSessionRequest(req.id);
+                                  }}
+                                  className="py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors"
+                                  title="Decline Request"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  <span className="sr-only">Decline</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-6 text-center text-xs text-slate-400 space-y-1">
+                            <CheckCircle2 className="w-6 h-6 mx-auto text-emerald-500 opacity-80" />
+                            <p className="font-semibold text-slate-600 dark:text-slate-300">All Caught Up!</p>
+                            <p className="text-[11px]">No pending session requests at the moment.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* User Account Menu Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(!userDropdownOpen);
+                      setLangDropdownOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-1 pl-2 pr-2.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer"
+                  >
                     <img
                       src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'}
                       alt={currentUser?.fullName || 'User'}
-                      className="w-10 h-10 rounded-full object-cover border border-orange-300 dark:border-slate-600 shrink-0"
+                      className="w-7 h-7 rounded-full object-cover border border-white dark:border-slate-800"
                     />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                        {currentUser?.fullName || 'User'}
+                    <div className="text-left hidden md:block">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-none">
+                        {(currentUser?.fullName || currentUser?.username || 'User').split(' ')[0]}
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                        @{currentUser?.username || 'user'} • {currentUser?.role || 'MEMBER'}
-                      </p>
-                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                        {Number(currentUser?.balance ?? 0) >= 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)} Time Credits
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">
+                        {currentUser?.role || 'LEARNER'}
                       </p>
                     </div>
-                  </div>
+                  </button>
 
-                  <div className="p-2 space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <Link
-                      href="/dashboard"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
-                    >
-                      <BookOpen className="w-4 h-4 text-orange-500" />
-                      <span>My Learning Dashboard</span>
-                    </Link>
+                  {userDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 py-3 z-50 animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+                        <img
+                          src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'}
+                          alt={currentUser?.fullName || 'User'}
+                          className="w-10 h-10 rounded-full object-cover border border-orange-300 dark:border-slate-600 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {currentUser?.fullName || 'User'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            @{currentUser?.username || 'user'} • {currentUser?.role || 'MEMBER'}
+                          </p>
+                          <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                            {Number(currentUser?.balance ?? 0) >= 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)} Time Credits
+                          </p>
+                        </div>
+                      </div>
 
-                    <Link
-                      href="/sessions"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
-                    >
-                      <Clock className="w-4 h-4 text-blue-500" />
-                      <span>My 1-on-1 Sessions</span>
-                    </Link>
+                      <div className="p-2 space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
+                        >
+                          <BookOpen className="w-4 h-4 text-orange-500" />
+                          <span>My Learning Dashboard</span>
+                        </Link>
 
-                    <Link
-                      href="/wallet"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
-                    >
-                      <Coins className="w-4 h-4 text-emerald-500" />
-                      <span>Time Wallet & History</span>
-                    </Link>
+                        <Link
+                          href="/sessions"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
+                        >
+                          <Clock className="w-4 h-4 text-blue-500" />
+                          <span>My 1-on-1 Sessions</span>
+                        </Link>
 
-                    <Link
-                      href="/passport"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
-                    >
-                      <Award className="w-4 h-4 text-amber-500" />
-                      <span>Digital Skill Passport</span>
-                    </Link>
-                  </div>
+                        <Link
+                          href="/wallet"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
+                        >
+                          <Coins className="w-4 h-4 text-emerald-500" />
+                          <span>Time Wallet & History</span>
+                        </Link>
 
-                  <div className="p-2 border-t border-slate-100 dark:border-slate-700 mt-1">
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        logout();
-                        router.push('/login');
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left transition-colors cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
+                        <Link
+                          href="/passport"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
+                        >
+                          <Award className="w-4 h-4 text-amber-500" />
+                          <span>Digital Skill Passport</span>
+                        </Link>
+                      </div>
+
+                      <div className="p-2 border-t border-slate-100 dark:border-slate-700 mt-1">
+                        <button
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            logout();
+                            router.push('/login');
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left transition-colors cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              /* When Logged Out: Show prominent Sign In / Register UI */
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/login?tab=register"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 via-orange-600 to-green-600 hover:from-orange-600 hover:to-green-700 text-white text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Register Free</span>
+                </Link>
+              </div>
+            )}
 
             {/* Language Switcher */}
             <div className="relative">
@@ -394,6 +407,58 @@ export default function Navbar() {
                 </Link>
               );
             })}
+
+            {/* Mobile Auth Actions */}
+            <div className="pt-3 mt-2 border-t border-slate-200 dark:border-slate-800">
+              {isLoggedIn ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-3 py-1">
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'}
+                        alt={currentUser?.fullName || 'User'}
+                        className="w-8 h-8 rounded-full object-cover border border-orange-400"
+                      />
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white leading-none">
+                          {currentUser?.fullName}
+                        </p>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">
+                          {Number(currentUser?.balance ?? 0) >= 0 ? `+${Number(currentUser?.balance ?? 0).toFixed(2)}` : Number(currentUser?.balance ?? 0).toFixed(2)} Credits
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                        router.push('/login');
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 cursor-pointer"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 px-2 pt-1">
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-2 px-3 rounded-xl text-center text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/login?tab=register"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-2 px-3 rounded-xl text-center text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-green-600 shadow"
+                  >
+                    Register Free
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

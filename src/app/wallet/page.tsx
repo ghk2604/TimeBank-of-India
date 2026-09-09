@@ -9,13 +9,17 @@ import {
 } from 'lucide-react';
 
 export default function WalletPage() {
-  const { currentUser, t } = useApp();
+  const { currentUser, isLoggedIn, t } = useApp();
   const [walletData, setWalletData] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [recovery, setRecovery] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentUser?.id || !isLoggedIn) {
+      setLoading(false);
+      return;
+    }
     fetch(`/api/wallet?userId=${currentUser.id}`)
       .then((res) => res.json())
       .then((data) => {
@@ -25,7 +29,29 @@ export default function WalletPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [currentUser.id]);
+  }, [currentUser?.id, isLoggedIn]);
+
+  if (!isLoggedIn || !currentUser?.id) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-inner">
+          <Coins className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white">Sign In to View Wallet</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Please sign in to inspect your Time Credit balance, check transaction audit records, and manage your credit limits.
+          </p>
+        </div>
+        <Link
+          href="/login"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-green-600 hover:from-orange-600 hover:to-green-700 text-white font-bold text-xs shadow-lg transition-all hover:scale-105"
+        >
+          <span>Sign In / Register Free ▶</span>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">

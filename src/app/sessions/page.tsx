@@ -14,7 +14,7 @@ import {
 
 export default function SessionsListPage() {
   const router = useRouter();
-  const { currentUser, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
+  const { currentUser, isLoggedIn, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
   const [sessions, setSessions] = useState<any[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'SCHEDULED' | 'IN_PROGRESS' | 'CONFIRMED' | 'CANCELLED' | 'DISPUTED'>('ALL');
   const [loading, setLoading] = useState(true);
@@ -23,6 +23,10 @@ export default function SessionsListPage() {
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   const loadSessions = async () => {
+    if (!currentUser?.id || !isLoggedIn) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await fetch(`/api/sessions?userId=${currentUser.id}`, { cache: 'no-store' });
@@ -36,6 +40,7 @@ export default function SessionsListPage() {
   };
 
   useEffect(() => {
+    if (!currentUser?.id || !isLoggedIn) return;
     loadSessions();
 
     const interval = setInterval(loadSessions, 3000);
@@ -47,7 +52,29 @@ export default function SessionsListPage() {
       clearInterval(interval);
       unsubscribe();
     };
-  }, [currentUser.id]);
+  }, [currentUser?.id, isLoggedIn]);
+
+  if (!isLoggedIn || !currentUser?.id) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center shadow-inner">
+          <Clock className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white">Sign In to View Sessions</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Please sign in to view your scheduled 1-on-1 sessions, start video calls, and access Learning Goal Contracts.
+          </p>
+        </div>
+        <Link
+          href="/login"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-green-600 hover:from-orange-600 hover:to-green-700 text-white font-bold text-xs shadow-lg transition-all hover:scale-105"
+        >
+          <span>Sign In / Register Free ▶</span>
+        </Link>
+      </div>
+    );
+  }
 
   const filteredSessions = sessions.filter(s => {
     if (filter === 'ALL') return true;

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { currentUser, refreshUserData, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
+  const { currentUser, isLoggedIn, refreshUserData, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
   const [activeTab, setActiveTab] = useState<'LEARNER' | 'TEACHER'>('LEARNER');
   const [userData, setUserData] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   const loadData = async () => {
+    if (!currentUser?.id || !isLoggedIn) return;
     try {
       setLoading(true);
       const [uRes, rRes, sRes, wRes] = await Promise.all([
@@ -58,6 +59,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    if (!currentUser?.id || !isLoggedIn) return;
     loadData();
 
     // 2.5s live polling for instant incoming requests
@@ -73,7 +75,7 @@ export default function DashboardPage() {
       clearInterval(interval);
       unsubscribe();
     };
-  }, [currentUser.id]);
+  }, [currentUser?.id, isLoggedIn]);
 
   const handleRequestAction = async (requestId: string, action: 'ACCEPT' | 'REJECT') => {
     try {
@@ -103,6 +105,28 @@ export default function DashboardPage() {
       setIsProcessingAction(false);
     }
   };
+
+  if (!isLoggedIn || !currentUser?.id) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-950 text-orange-600 dark:text-orange-400 mx-auto flex items-center justify-center shadow-inner">
+          <UserCheck className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white">Sign In Required</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Please sign in to access your Learning Dashboard, view incoming requests, and manage your teaching & learning sessions.
+          </p>
+        </div>
+        <Link
+          href="/login"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-green-600 hover:from-orange-600 hover:to-green-700 text-white font-bold text-xs shadow-lg transition-all hover:scale-105"
+        >
+          <span>Sign In / Register Free ▶</span>
+        </Link>
+      </div>
+    );
+  }
 
   // Filter requests based on perspective
   const incomingTeacherRequests = requests.filter(r => r.teacher_id === currentUser.id);

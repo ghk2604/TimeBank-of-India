@@ -86,11 +86,23 @@ export const DEMO_USERS: CurrentUser[] = [
   }
 ];
 
+export const GUEST_USER: CurrentUser = {
+  id: '',
+  fullName: '',
+  username: '',
+  avatar: '',
+  balance: 0,
+  borrowingLimit: 0,
+  role: 'LEARNER',
+  unreadNotifications: 0
+};
+
 export function normalizeUser(rawUser: any): CurrentUser {
   if (!rawUser || typeof rawUser !== 'object') {
-    return DEMO_USERS[0];
+    return GUEST_USER;
   }
-  const id = rawUser.id || 'user-1788931038705';
+  const id = rawUser.id || '';
+  if (!id) return GUEST_USER;
   const fullName = rawUser.fullName || rawUser.full_name || rawUser.name || 'User';
   const username = rawUser.username || id;
   const avatar = rawUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces';
@@ -123,7 +135,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Language>('en');
-  const [currentUser, setCurrentUserState] = useState<CurrentUser>(DEMO_USERS[0]);
+  const [currentUser, setCurrentUserState] = useState<CurrentUser>(GUEST_USER);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
@@ -209,37 +221,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsed = JSON.parse(savedUser);
           const normalized = normalizeUser(parsed);
-          setCurrentUserState(normalized);
-          setIsLoggedIn(true);
+          if (normalized.id) {
+            setCurrentUserState(normalized);
+            setIsLoggedIn(true);
+            refreshUserData(normalized.id);
+          } else {
+            setIsLoggedIn(false);
+            setCurrentUserState(GUEST_USER);
+          }
         } catch (e) {
           setIsLoggedIn(false);
-          setCurrentUserState(DEMO_USERS[0]);
+          setCurrentUserState(GUEST_USER);
         }
       } else {
         setIsLoggedIn(false);
+        setCurrentUserState(GUEST_USER);
       }
     } catch (err) {
       console.warn('LocalStorage access warning:', err);
     }
-
-    refreshUserData();
   }, []);
 
   // Real-time synchronization & fast polling
   useEffect(() => {
+    if (!isLoggedIn || !currentUser?.id) {
+      setPendingIncomingRequests([]);
+      return;
+    }
+
     refreshRequests(currentUser.id);
-    refreshUserData();
+    refreshUserData(currentUser.id);
 
     // 2.5 second live background polling for immediate request discovery
     const intervalId = setInterval(() => {
       refreshRequests(currentUser.id);
-      refreshUserData();
+      refreshUserData(currentUser.id);
     }, 2500);
 
     // Instant cross-tab & local real-time event listener
     const unsubscribe = subscribeToRequestEvents((type, payload) => {
+      if (!currentUser?.id) return;
       refreshRequests(currentUser.id);
-      refreshUserData();
+      refreshUserData(currentUser.id);
 
       if (type === 'REQUEST_ACCEPTED' && payload) {
         // Pop-up for the learner who requested the session
@@ -267,7 +290,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(intervalId);
       unsubscribe();
     };
-  }, [currentUser?.id, currentUser?.fullName, refreshRequests]);
+  }, [isLoggedIn, currentUser?.id, currentUser?.fullName, refreshRequests]);
 
   const setLang = (newLang: Language) => {
     setLangState(newLang);
@@ -293,8 +316,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem('tbi_is_authenticated');
       localStorage.removeItem('tbi_user');
+      localStorage.removeItem('tbi_active_tab');
     } catch (e) {}
-    setCurrentUserState(DEMO_USERS[0]);
+    setCurrentUserState(GUEST_USER);
     setShowAuthModal(false);
     setPendingIncomingRequests([]);
   };

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { 
   Award, ShieldCheck, CheckCircle2, Clock, Star, 
@@ -8,17 +9,43 @@ import {
 } from 'lucide-react';
 
 export default function SkillPassportPage() {
-  const { currentUser } = useApp();
+  const { currentUser, isLoggedIn } = useApp();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentUser?.id || !isLoggedIn) {
+      setLoading(false);
+      return;
+    }
     fetch(`/api/users/${currentUser.id}`)
       .then(res => res.json())
       .then(data => setUserData(data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [currentUser.id]);
+  }, [currentUser?.id, isLoggedIn]);
+
+  if (!isLoggedIn || !currentUser?.id) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-inner">
+          <Award className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white">Sign In to View Passport</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Please sign in to view your verified learning milestones, teaching credentials, and Ashoka stamp certificate.
+          </p>
+        </div>
+        <Link
+          href="/login"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-green-600 hover:from-orange-600 hover:to-green-700 text-white font-bold text-xs shadow-lg transition-all hover:scale-105"
+        >
+          <span>Sign In / Register Free ▶</span>
+        </Link>
+      </div>
+    );
+  }
 
   const badges = [
     { id: 'b1', name: 'First Lesson', icon: '🌱', desc: 'Completed first 1-on-1 learning session', unlocked: true },
