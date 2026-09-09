@@ -4,8 +4,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { 
-  ArrowRight, Sparkles, CheckCircle2, Clock, ShieldCheck, 
-  Award, TrendingUp, Users, Brain, Repeat, Zap, Compass, Star, ChevronRight
+  ArrowRight, Sparkles, CheckCircle2, Clock, 
+  TrendingUp, Users, Repeat, Zap, Compass, Star, ChevronRight
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -158,68 +158,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* STRICT SCOPE GUARD SECTION */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-slate-900 text-white rounded-3xl p-8 sm:p-12 border border-slate-800 shadow-2xl">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-400 text-xs font-semibold mb-4 border border-rose-500/30">
-                <ShieldCheck className="w-3.5 h-3.5" /> High Standards & Focus
-              </div>
-              <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-4">
-                Not a General Service Marketplace
-              </h3>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                TimeBank of India is dedicated solely to <strong>intellectual skill sharing, academic tutoring, technology education, professional craft, and languages</strong>.
-              </p>
-              <div className="space-y-2.5 text-xs text-slate-300">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-emerald-400 font-bold">✓ ALLOWED:</span>
-                  <span>Python, Next.js, UI/UX, IIT-JEE Physics, Spoken English, Telugu, Linear Algebra</span>
-                </div>
-                <div className="flex items-center gap-2.5 text-rose-400">
-                  <span className="font-bold">❌ STRICTLY FORBIDDEN:</span>
-                  <span>Gardening, cooking, physical repairs, housekeeping, volunteering, or chores</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700/60">
-                <Clock className="w-6 h-6 text-orange-400 mb-2" />
-                <h4 className="font-bold text-sm text-white">24h Response Rule</h4>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Teachers must accept or decline within 24 hours, or the request auto-expires with zero credit deduction.
-                </p>
-              </div>
-
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700/60">
-                <Award className="w-6 h-6 text-blue-400 mb-2" />
-                <h4 className="font-bold text-sm text-white">Digital Skill Passport</h4>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Official verified record of your completed learning hours, teaching contributions, and validated badges.
-                </p>
-              </div>
-
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700/60">
-                <Brain className="w-6 h-6 text-green-400 mb-2" />
-                <h4 className="font-bold text-sm text-white">Skill Readiness Score</h4>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Transparent 0-100 score reflecting assessment proficiency, practical portfolio, and learner reviews.
-                </p>
-              </div>
-
-              <div className="p-5 rounded-2xl bg-slate-800/80 border border-slate-700/60">
-                <Repeat className="w-6 h-6 text-amber-400 mb-2" />
-                <h4 className="font-bold text-sm text-white">Credit Recovery</h4>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Negative balance? Get matched with learners eager to learn your skills so you can teach and recover!
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* POPULAR SKILLS & TEACHERS DISCOVERY */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
