@@ -176,6 +176,10 @@ export default function OtpAuthModal({ isPageMode = false, onSuccess }: OtpAuthM
     if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
       otpRefs.current[index - 1]?.focus();
     }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleVerifyOtp();
+    }
   };
 
   // Auto-fill dev OTP for instant 1-click testing
