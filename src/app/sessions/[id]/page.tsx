@@ -467,13 +467,6 @@ export default function LiveSessionRoomPage() {
               >
                 {timerActive ? '⏸ Pause Timer' : '▶ Resume Timer'}
               </button>
-              <button
-                onClick={() => setTimerSeconds((session.duration || 60) * 60)}
-                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200"
-                title="Reset session timer"
-              >
-                🔄 Reset
-              </button>
             </div>
           )}
 
