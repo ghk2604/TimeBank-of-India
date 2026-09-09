@@ -304,29 +304,43 @@ export default function SessionsListPage() {
                 <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center flex-wrap">
                   {session.status === 'SCHEDULED' ? (
                     <>
-                      <button
-                        onClick={() => handleStartSession(session.id)}
+                      <Link
+                        href={`/sessions/${session.id}?video=1`}
                         className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-xs font-black shadow-md flex items-center gap-2 hover:scale-105 transition-all cursor-pointer"
                       >
-                        <Play className="w-4 h-4 fill-white" />
-                        <span>Start Session ▶</span>
+                        <Video className="w-4 h-4 fill-white" />
+                        <span>Join Video Call ▶</span>
+                      </Link>
+                      <button
+                        onClick={() => handleStartSession(session.id)}
+                        className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                        <span>Start Session</span>
                       </button>
                       <Link
                         href={`/sessions/${session.id}`}
                         className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                       >
-                        <Video className="w-3.5 h-3.5" />
                         <span>Classroom</span>
                       </Link>
                     </>
                   ) : session.status === 'IN_PROGRESS' ? (
-                    <Link
-                      href={`/sessions/${session.id}`}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white text-xs font-black shadow-lg flex items-center gap-2 animate-pulse hover:scale-105 transition-all"
-                    >
-                      <Video className="w-4 h-4" />
-                      <span>🔴 Live Session Active • Enter Room ▶</span>
-                    </Link>
+                    <>
+                      <Link
+                        href={`/sessions/${session.id}?video=1`}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-600 hover:from-emerald-700 hover:to-green-700 text-white text-xs font-black shadow-lg flex items-center gap-2 animate-pulse hover:scale-105 transition-all"
+                      >
+                        <Video className="w-4 h-4" />
+                        <span>🔴 Join Video Call (Live) ▶</span>
+                      </Link>
+                      <Link
+                        href={`/sessions/${session.id}`}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <span>Classroom & Notes</span>
+                      </Link>
+                    </>
                   ) : session.status === 'CANCELLED' ? (
                     <Link
                       href={`/sessions/${session.id}`}

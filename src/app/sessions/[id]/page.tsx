@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { 
   Video, Mic, MicOff, VideoOff, Share2, Clock, CheckCircle2, 
@@ -10,12 +10,15 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import InteractiveMeetCall from '@/components/InteractiveMeetCall';
+import JitsiMeetingRoom from '@/components/JitsiMeetingRoom';
 
 export default function LiveSessionRoomPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const sessionId = params.id as string;
   const { currentUser, refreshUserData } = useApp();
+  const autoJoinVideo = searchParams.get('video') === '1' || searchParams.get('call') === '1';
 
   const [session, setSession] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -489,12 +492,11 @@ export default function LiveSessionRoomPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT 2 COLS: VIDEO / CODE SCREEN SIMULATION */}
         <div className="lg:col-span-2 space-y-4">
-          {/* GOOGLE MEET STYLE INTERACTIVE AUDIO & VIDEO CLASSROOM */}
-          <InteractiveMeetCall
+          {/* JITSI MEET 2-WAY VIDEO CALLING ROOM */}
+          <JitsiMeetingRoom
             session={session}
             currentUser={currentUser}
-            timerSeconds={timerSeconds}
-            timerActive={timerActive}
+            autoJoin={autoJoinVideo}
             onCancelSession={() => {
               const totalMins = Number(session?.duration || 60);
               const autoMins = Math.max(0, Math.min(totalMins, Math.round(((totalMins * 60) - timerSeconds) / 60)));

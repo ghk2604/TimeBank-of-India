@@ -87,16 +87,24 @@ export default function SessionAcceptedModal() {
         <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
           <button
             onClick={() => setAcceptedModal(null)}
-            className="w-full sm:w-auto flex-1 py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+            className="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
           >
             Dismiss
           </button>
           <button
-            onClick={handleEnterSession}
-            className="w-full sm:w-auto flex-1 py-3 px-5 rounded-xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-xs font-extrabold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            onClick={() => {
+              const targetSessionId = acceptedModal.sessionId;
+              setAcceptedModal(null);
+              if (targetSessionId) {
+                router.push(`/sessions/${targetSessionId}?video=1`);
+              } else {
+                router.push('/sessions');
+              }
+            }}
+            className="w-full sm:w-auto flex-1 py-3 px-5 rounded-xl bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-600 hover:from-emerald-700 hover:to-green-700 text-white text-xs font-extrabold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Video className="w-4 h-4" />
-            <span>Enter Session Classroom ▶</span>
+            <Video className="w-4 h-4 fill-white" />
+            <span>Join Video Call Now ▶</span>
           </button>
         </div>
       </div>

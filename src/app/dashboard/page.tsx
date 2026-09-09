@@ -321,10 +321,24 @@ export default function DashboardPage() {
             </div>
             <p className="text-[11px] text-slate-400">Next 7 days</p>
           </div>
-          <Link href="/sessions" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
-            <span>Manage Sessions</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
+          {sessions.some(s => s.status === 'SCHEDULED' || s.status === 'IN_PROGRESS') ? (
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+              <Link href="/sessions" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                Manage Sessions
+              </Link>
+              <Link
+                href={`/sessions/${(sessions.find(s => s.status === 'IN_PROGRESS') || sessions.find(s => s.status === 'SCHEDULED'))?.id}?video=1`}
+                className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800"
+              >
+                <span>Join Call ▶</span>
+              </Link>
+            </div>
+          ) : (
+            <Link href="/sessions" className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
+              <span>Manage Sessions</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          )}
         </div>
 
         {/* Skill Passport Level */}
