@@ -4,7 +4,7 @@ export type ExperienceLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert
 export type TeachingLevel = 'Beginner learners' | 'Intermediate learners' | 'Advanced learners';
 
 export type RequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
-export type SessionStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CONFIRMED' | 'DISPUTED';
+export type SessionStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CONFIRMED' | 'DISPUTED' | 'CANCELLED';
 
 export type LearnerOutcome = 'GOAL_ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED';
 export type TeacherOutcome = 'SUCCESSFUL' | 'NEEDS_ANOTHER_SESSION' | 'INCOMPLETE';
@@ -149,6 +149,11 @@ export interface Session {
   outcomeStatus?: LearnerOutcome;
   teacherOutcome?: TeacherOutcome;
   meetingLink?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
+  cancellationTime?: string;
+  actualDuration?: number;
+  cancellationDeduction?: number;
   createdAt: string;
 }
 

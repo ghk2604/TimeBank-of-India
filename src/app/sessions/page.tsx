@@ -9,14 +9,14 @@ import RequestReviewModal from '@/components/RequestReviewModal';
 import { 
   Clock, Video, CheckCircle2, AlertTriangle, Star, 
   ArrowRight, ShieldAlert, Coins, ChevronRight, UserCheck, BookOpen, Check, X,
-  Play, Eye, Calendar
+  Play, Eye, Calendar, XCircle
 } from 'lucide-react';
 
 export default function SessionsListPage() {
   const router = useRouter();
   const { currentUser, pendingIncomingRequests, acceptSessionRequest, declineSessionRequest } = useApp();
   const [sessions, setSessions] = useState<any[]>([]);
-  const [filter, setFilter] = useState<'ALL' | 'SCHEDULED' | 'CONFIRMED' | 'DISPUTED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'SCHEDULED' | 'IN_PROGRESS' | 'CONFIRMED' | 'CANCELLED' | 'DISPUTED'>('ALL');
   const [loading, setLoading] = useState(true);
   const [sessionToast, setSessionToast] = useState<string | null>(null);
   const [selectedRequestForReview, setSelectedRequestForReview] = useState<any | null>(null);
@@ -217,12 +217,12 @@ export default function SessionsListPage() {
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2">
-        {['ALL', 'SCHEDULED', 'CONFIRMED', 'DISPUTED'].map((tab: any) => (
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {['ALL', 'SCHEDULED', 'IN_PROGRESS', 'CONFIRMED', 'CANCELLED', 'DISPUTED'].map((tab: any) => (
           <button
             key={tab}
             onClick={() => setFilter(tab)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
               filter === tab
                 ? 'bg-orange-500 text-white shadow-sm'
                 : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
@@ -263,6 +263,8 @@ export default function SessionsListPage() {
                             ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
                             : session.status === 'IN_PROGRESS'
                             ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 animate-pulse'
+                            : session.status === 'CANCELLED'
+                            ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
                             : session.status === 'DISPUTED'
                             ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
                             : 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300'
@@ -323,6 +325,14 @@ export default function SessionsListPage() {
                     >
                       <Video className="w-4 h-4" />
                       <span>🔴 Live Session Active • Enter Room ▶</span>
+                    </Link>
+                  ) : session.status === 'CANCELLED' ? (
+                    <Link
+                      href={`/sessions/${session.id}`}
+                      className="px-4 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                    >
+                      <XCircle className="w-4 h-4 text-rose-500" />
+                      <span>Cancelled ({session.actual_duration || 0}m taught)</span>
                     </Link>
                   ) : session.status === 'DISPUTED' ? (
                     <Link

@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { 
   Video, Mic, MicOff, VideoOff, Share2, Clock, CheckCircle2, 
-  AlertTriangle, Star, Coins, ShieldAlert, ArrowLeft, Send, Sparkles, X
+  AlertTriangle, Star, Coins, ShieldAlert, ArrowLeft, Send, Sparkles, X,
+  XCircle, AlertCircle, Calendar
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -39,6 +40,14 @@ export default function LiveSessionRoomPage() {
   const [disputeModalOpen, setDisputeModalOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState('Session did not meet the agreed Learning Goal Contract');
   const [disputeDescription, setDisputeDescription] = useState('');
+
+  // Cancellation modal states
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('Personal Emergency');
+  const [cancellationCustomReason, setCancellationCustomReason] = useState('');
+  const [actualMinutesTaughtInput, setActualMinutesTaughtInput] = useState<number>(15);
+  const [cancellationResult, setCancellationResult] = useState<any>(null);
+  const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
 
   const loadSession = async () => {
     try {
@@ -95,6 +104,43 @@ export default function LiveSessionRoomPage() {
       }
     } catch (e: any) {
       alert(e.message);
+    }
+  };
+
+  // Cancel Session Early Action
+  const handleCancelSession = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const finalReason = cancellationCustomReason.trim()
+      ? `${cancellationReason}: ${cancellationCustomReason.trim()}`
+      : cancellationReason;
+
+    try {
+      setIsSubmittingCancellation(true);
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'CANCEL_SESSION',
+          cancellingUserId: currentUser.id,
+          actualMinutesTaught: actualMinutesTaughtInput,
+          cancellationReason: finalReason,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setCancellationResult(data.cancellationResult);
+        setCancelModalOpen(false);
+        setTimerActive(false);
+        loadSession();
+        refreshUserData();
+      } else {
+        alert(data.error || 'Failed to cancel session');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred during cancellation');
+    } finally {
+      setIsSubmittingCancellation(false);
     }
   };
 
@@ -279,6 +325,73 @@ export default function LiveSessionRoomPage() {
         </div>
       )}
 
+      {/* SESSION CANCELLED ALERT BANNER */}
+      {session.status === 'CANCELLED' && (
+        <div className="p-6 rounded-3xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 shadow-md space-y-3 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200 dark:border-rose-800/60 pb-3">
+            <div className="flex items-center gap-2.5 text-rose-700 dark:text-rose-400 font-black text-base">
+              <XCircle className="w-6 h-6 shrink-0" />
+              <span>Session Cancelled Early</span>
+            </div>
+            <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-rose-200 dark:bg-rose-900 text-rose-900 dark:text-rose-200 uppercase tracking-wider self-start sm:self-auto">
+              Status: Cancelled
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-rose-200 dark:border-rose-900/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cancelled By</span>
+              <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">
+                {session.cancelled_by === currentUser.id ? 'You (Self-Cancelled)' : (session.canceller_name || counterpartyName)}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-rose-200 dark:border-rose-900/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Taught Delivered</span>
+              <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                ⏱️ {session.actual_duration ?? 0} mins (out of {session.duration} mins)
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-rose-200 dark:border-rose-900/60">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Credit Deduction on Canceller</span>
+              <p className="text-xs font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">
+                🪙 -{Number(session.cancellation_deduction || 0).toFixed(2)} Time Credits
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-rose-200 dark:border-rose-900/60 text-xs">
+            <strong className="font-bold text-rose-900 dark:text-rose-300">Cancellation Reason: </strong>
+            <span className="italic text-slate-700 dark:text-slate-300">&quot;{session.cancellation_reason || 'Session cancelled early'}&quot;</span>
+          </div>
+        </div>
+      )}
+
+      {/* CANCELLATION RESULT TOAST */}
+      {cancellationResult && (
+        <div className="p-6 rounded-3xl bg-slate-900 text-white shadow-2xl border-2 border-rose-500 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in zoom-in-95">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-black text-base text-rose-400">
+              <XCircle className="w-5 h-5" />
+              <span>Session Cancellation Finalized</span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Transaction ID: <strong className="font-mono text-amber-400">{cancellationResult.transactionId}</strong>
+            </p>
+            <p className="text-xs text-slate-300">
+              Delivered: {cancellationResult.actualMinutesTaught} mins taught • Cancelled: {cancellationResult.cancelledMinutes} mins unfulfilled • Deduction: -{cancellationResult.cancellationDeduction?.toFixed(2)} Time Credits
+            </p>
+          </div>
+          <button
+            onClick={() => setCancellationResult(null)}
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* ATOMIC CREDIT TRANSFER CELEBRATION TOAST */}
       {transferResult && (
         <div className="p-6 rounded-3xl bg-emerald-500 text-white shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in zoom-in-95">
@@ -331,7 +444,7 @@ export default function LiveSessionRoomPage() {
         </div>
 
         {/* Start Session / Timer Controls */}
-        <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0">
+        <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0 flex-wrap">
           {session.status === 'SCHEDULED' && (
             <button
               onClick={handleStartLiveSession}
@@ -362,6 +475,21 @@ export default function LiveSessionRoomPage() {
                 🔄 Reset
               </button>
             </div>
+          )}
+
+          {(session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS') && (
+            <button
+              onClick={() => {
+                const autoMins = Math.max(0, Math.min(session.duration, Math.round(((session.duration * 60) - timerSeconds) / 60)));
+                setActualMinutesTaughtInput(autoMins || 15);
+                setCancelModalOpen(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Cancel Session early and calculate prorated credit deduction"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Cancel Session</span>
+            </button>
           )}
         </div>
       </div>
@@ -448,6 +576,21 @@ export default function LiveSessionRoomPage() {
                 <ShieldAlert className="w-4 h-4" />
                 <span className="hidden sm:inline">Dispute</span>
               </button>
+
+              {(session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS') && (
+                <button
+                  onClick={() => {
+                    const autoMins = Math.max(0, Math.min(session.duration, Math.round(((session.duration * 60) - timerSeconds) / 60)));
+                    setActualMinutesTaughtInput(autoMins || 15);
+                    setCancelModalOpen(true);
+                  }}
+                  className="px-3.5 py-2.5 rounded-2xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors border border-rose-800 cursor-pointer"
+                  title="Cancel session early with credit adjustment"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Cancel Session</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -537,7 +680,17 @@ export default function LiveSessionRoomPage() {
             </div>
 
             {/* Dynamic Confirmation Actions */}
-            {session.status !== 'CONFIRMED' && (
+            {session.status === 'CANCELLED' ? (
+              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-900 text-center space-y-1.5 mt-2">
+                <p className="text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center justify-center gap-1.5">
+                  <XCircle className="w-4 h-4" />
+                  <span>Session Cancelled Early</span>
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  Teaching delivered: <strong>{session.actual_duration || 0} mins</strong>. Prorated credits adjusted with deduction on cancelling party.
+                </p>
+              </div>
+            ) : session.status !== 'CONFIRMED' ? (
               <div className="pt-2 space-y-3">
                 {isTeacher && !session.teacher_confirmation && (
                   <button
@@ -559,7 +712,7 @@ export default function LiveSessionRoomPage() {
                   </button>
                 )}
               </div>
-            )}
+            ) : null}
 
             {session.status === 'CONFIRMED' && (
               <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 text-center space-y-2">
@@ -700,6 +853,166 @@ export default function LiveSessionRoomPage() {
                   className="px-6 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold"
                 >
                   File Dispute & Pause Transfer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SESSION CANCELLATION MODAL */}
+      {cancelModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div 
+            className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-rose-400 dark:border-rose-900 space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-md shrink-0">
+                  <XCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                    Cancel Session Early
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Prorated credit deduction for the cancelling user
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCancelModalOpen(false)} 
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Warning Alert */}
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs space-y-1">
+              <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-400">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Credit Decrease on Your Account</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-rose-800 dark:text-rose-300">
+                Because you are initiating this early cancellation, Time Credits will be deducted from your wallet according to the unfulfilled cancelled time. Delivered teaching time is calculated pro-rata.
+              </p>
+            </div>
+
+            <form onSubmit={handleCancelSession} className="space-y-4 text-xs">
+              {/* Duration & Time Taught Selector */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-slate-900 dark:text-white">
+                    Minutes Actually Taught / Completed:
+                  </span>
+                  <span className="font-black text-sm px-2.5 py-0.5 rounded-lg bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300">
+                    {actualMinutesTaughtInput} / {session.duration} mins
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={session.duration}
+                  step={1}
+                  value={actualMinutesTaughtInput}
+                  onChange={(e) => setActualMinutesTaughtInput(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>0 mins (Just started)</span>
+                  <span>{Math.round(session.duration / 2)} mins</span>
+                  <span>{session.duration} mins (Full)</span>
+                </div>
+
+                {/* Prorated Breakdown Cards */}
+                <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Taught ({actualMinutesTaughtInput}m)</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                      {(actualMinutesTaughtInput / 60).toFixed(2)} Time Cr
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] text-slate-400 block font-semibold">
+                      Cancelled ({Math.max(0, session.duration - actualMinutesTaughtInput)}m)
+                    </span>
+                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">
+                      {(Math.max(0, session.duration - actualMinutesTaughtInput) / 60).toFixed(2)} Time Cr
+                    </span>
+                  </div>
+                </div>
+
+                {/* Net Deduction for Cancelling User */}
+                <div className="p-3 rounded-xl bg-rose-100/70 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-900 flex items-center justify-between">
+                  <span className="font-bold text-rose-900 dark:text-rose-200">
+                    Net Credit Decrease for You ({isTeacher ? 'Teacher' : 'Learner'}):
+                  </span>
+                  <span className="font-black text-rose-700 dark:text-rose-400 text-sm">
+                    {isTeacher
+                      ? `-${Math.max(0, (session.duration - actualMinutesTaughtInput) / 60 - actualMinutesTaughtInput / 60).toFixed(2)} Time Credits`
+                      : `-${((actualMinutesTaughtInput + Math.max(0, session.duration - actualMinutesTaughtInput)) / 60).toFixed(2)} Time Credits`
+                    }
+                  </span>
+                </div>
+              </div>
+
+              {/* Cancellation Reason Selection */}
+              <div className="space-y-2">
+                <label className="font-extrabold text-slate-900 dark:text-white block">
+                  Select Reason for Cancellation <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Personal Emergency',
+                    'Technical / Internet Issue',
+                    'Agreed to Conclude Early',
+                    'Time Constraint / Conflict',
+                    'Other Reason',
+                  ].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setCancellationReason(r)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        cancellationReason === r
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  rows={2}
+                  placeholder="Explain why the session is being cancelled (e.g., unexpected power cut, emergency meeting)..."
+                  value={cancellationCustomReason}
+                  onChange={(e) => setCancellationCustomReason(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                >
+                  Resume Session
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCancellation}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-black text-xs shadow-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>{isSubmittingCancellation ? 'Cancelling...' : 'Confirm Cancellation & Deduct Credits'}</span>
                 </button>
               </div>
             </form>

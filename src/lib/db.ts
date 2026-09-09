@@ -155,6 +155,11 @@ export function initDB() {
       teacher_outcome TEXT,
       meeting_link TEXT,
       session_notes TEXT,
+      cancelled_by TEXT,
+      cancellation_reason TEXT,
+      cancellation_time TEXT,
+      actual_duration INTEGER,
+      cancellation_deduction REAL,
       created_at TEXT,
       FOREIGN KEY (learner_id) REFERENCES users(id),
       FOREIGN KEY (teacher_id) REFERENCES users(id),
@@ -267,6 +272,29 @@ export function initDB() {
       created_at TEXT NOT NULL
     );
   `);
+
+  // Ensure cancellation columns exist on sessions table
+  try {
+    const tableInfo = db.prepare(`PRAGMA table_info(sessions)`).all() as any[];
+    const columnNames = new Set(tableInfo.map(c => c.name));
+    if (!columnNames.has('cancelled_by')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN cancelled_by TEXT`).run();
+    }
+    if (!columnNames.has('cancellation_reason')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN cancellation_reason TEXT`).run();
+    }
+    if (!columnNames.has('cancellation_time')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN cancellation_time TEXT`).run();
+    }
+    if (!columnNames.has('actual_duration')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN actual_duration INTEGER`).run();
+    }
+    if (!columnNames.has('cancellation_deduction')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN cancellation_deduction REAL`).run();
+    }
+  } catch (err) {
+    console.error('Migration error for sessions columns:', err);
+  }
 
   seedInitialData();
 }

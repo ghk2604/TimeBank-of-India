@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { executeAtomicCreditTransfer } from '@/lib/credits';
+import { executeAtomicCreditTransfer, executeSessionCancellation } from '@/lib/credits';
 
 export async function GET(
   request: Request,
@@ -12,11 +12,13 @@ export async function GET(
       SELECT s.*,
              l.full_name as learner_name, l.avatar as learner_avatar, l.city as learner_city,
              t.full_name as teacher_name, t.avatar as teacher_avatar, t.city as teacher_city,
+             cb.full_name as canceller_name,
              sk.name as skill_name, sk.category as skill_category
       FROM sessions s
       JOIN users l ON s.learner_id = l.id
       JOIN users t ON s.teacher_id = t.id
       JOIN skills sk ON s.skill_id = sk.id
+      LEFT JOIN users cb ON s.cancelled_by = cb.id
       WHERE s.id = ?
     `).get(sessionId) as any;
 
@@ -109,6 +111,28 @@ export async function PUT(
         success: true,
         message: 'Learner confirmed session outcome.',
         transferResult,
+      });
+    } else if (action === 'CANCEL_SESSION') {
+      const { cancellingUserId, actualMinutesTaught, cancellationReason } = body;
+      if (!cancellingUserId) {
+        return NextResponse.json({ error: 'cancellingUserId is required' }, { status: 400 });
+      }
+
+      const cancellationResult = executeSessionCancellation(
+        sessionId,
+        cancellingUserId,
+        Number(actualMinutesTaught ?? 0),
+        cancellationReason || 'Session cancelled early'
+      );
+
+      if (!cancellationResult.success) {
+        return NextResponse.json({ error: cancellationResult.message }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: cancellationResult.message,
+        cancellationResult,
       });
     } else {
       return NextResponse.json({ error: 'Invalid session action' }, { status: 400 });

@@ -259,3 +259,254 @@ export function getCreditRecoverySuggestions(userId: string) {
     recommendations
   };
 }
+
+export interface CancellationResult {
+  success: boolean;
+  message: string;
+  transactionId?: string;
+  actualMinutesTaught?: number;
+  cancelledMinutes?: number;
+  proratedCreditsTaught?: number;
+  cancellationDeduction?: number;
+  cancellingRole?: 'TEACHER' | 'LEARNER';
+  cancellingUserNewBalance?: number;
+  counterpartyNewBalance?: number;
+}
+
+/**
+ * Mid-Session Cancellation and Prorated Credit Adjustment
+ * Deducts credits from the user who initiates session cancellation.
+ * If 60 min session is cancelled after 15 min of teaching:
+ * - 15 mins taught: 0.25 Time Credits (prorated)
+ * - 45 mins cancelled: 0.75 Time Credits (cancelled slot)
+ * Credits corresponding to the cancelled time are deducted from the cancelling party's wallet.
+ */
+export function executeSessionCancellation(
+  sessionId: string,
+  cancellingUserId: string,
+  actualMinutesTaught: number,
+  cancellationReason: string
+): CancellationResult {
+  const session = db.prepare(`
+    SELECT s.*, 
+           l.full_name as learner_name,
+           t.full_name as teacher_name,
+           lw.balance as learner_balance,
+           lw.borrowing_limit as learner_limit,
+           tw.balance as teacher_balance,
+           sk.name as skill_name
+    FROM sessions s
+    JOIN users l ON s.learner_id = l.id
+    JOIN users t ON s.teacher_id = t.id
+    JOIN wallets lw ON s.learner_id = lw.user_id
+    JOIN wallets tw ON s.teacher_id = tw.user_id
+    JOIN skills sk ON s.skill_id = sk.id
+    WHERE s.id = ?
+  `).get(sessionId) as any;
+
+  if (!session) {
+    return { success: false, message: 'Session not found.' };
+  }
+
+  if (session.status === 'CANCELLED') {
+    return { success: false, message: 'Session is already cancelled.' };
+  }
+
+  if (session.status === 'CONFIRMED') {
+    return { success: false, message: 'Session has already been confirmed and completed. Cannot cancel.' };
+  }
+
+  const isTeacher = cancellingUserId === session.teacher_id;
+  const isLearner = cancellingUserId === session.learner_id;
+
+  if (!isTeacher && !isLearner) {
+    return { success: false, message: 'Only session participants can cancel the session.' };
+  }
+
+  const totalDuration = Number(session.duration || 60);
+  const safeMinutesTaught = Math.max(0, Math.min(totalDuration, Math.round(Number(actualMinutesTaught) || 0)));
+  const cancelledMinutes = Math.max(0, totalDuration - safeMinutesTaught);
+
+  // Prorated calculations (1 hr = 1.00 credit)
+  const proratedCreditsTaught = Math.round((safeMinutesTaught / 60) * 100) / 100;
+  const cancellationDeduction = Math.round((cancelledMinutes / 60) * 100) / 100;
+
+  const cancelTx = db.transaction(() => {
+    const txUniqueId = `TX-CNC-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const now = new Date().toISOString();
+
+    let cancellingUserNewBalance = 0;
+    let counterpartyNewBalance = 0;
+
+    if (isTeacher) {
+      // TEACHER CANCELS MID-SESSION:
+      // Teacher stopped early after teaching safeMinutesTaught (e.g. 15 min = 0.25 Cr).
+      // Remaining cancelledMinutes (e.g. 45 min = 0.75 Cr) cancelled by Teacher.
+      // Net deduction on Teacher who cancelled = cancellationDeduction - proratedCreditsTaught (e.g. 0.50 Cr deduction)
+      // Learner pays proratedCreditsTaught (0.25 Cr) for teaching received, unfulfilled portion cancelled.
+      const teacherNetPenalty = Math.max(0, cancellationDeduction - proratedCreditsTaught);
+
+      db.prepare(`
+        UPDATE wallets 
+        SET balance = balance - ?, total_spent = total_spent + ?, updated_at = ?
+        WHERE user_id = ?
+      `).run(teacherNetPenalty, teacherNetPenalty, now, session.teacher_id);
+
+      if (proratedCreditsTaught > 0) {
+        db.prepare(`
+          UPDATE wallets 
+          SET balance = balance - ?, total_spent = total_spent + ?, updated_at = ?
+          WHERE user_id = ?
+        `).run(proratedCreditsTaught, proratedCreditsTaught, now, session.learner_id);
+      }
+
+      cancellingUserNewBalance = session.teacher_balance - teacherNetPenalty;
+      counterpartyNewBalance = session.learner_balance - proratedCreditsTaught;
+
+      // Immutable audit transaction
+      db.prepare(`
+        INSERT INTO transactions (id, transaction_id, session_id, teacher_id, learner_id, credit_amount, transaction_type, status, description, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'SESSION_CANCELLATION', 'COMPLETED', ?, ?)
+      `).run(
+        `tx-${Date.now()}`,
+        txUniqueId,
+        sessionId,
+        session.teacher_id,
+        session.learner_id,
+        cancellationDeduction,
+        `Session cancelled by Teacher after ${safeMinutesTaught}/${totalDuration} mins. Teacher penalized -${teacherNetPenalty.toFixed(2)} Time Credits for ${cancelledMinutes} mins unfulfilled slot. Reason: ${cancellationReason}`,
+        now
+      );
+
+      // Realtime notifications
+      db.prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+        VALUES (?, ?, ?, ?, 'SESSION', 0, '/wallet', ?)
+      `).run(
+        `notif-cnc-t-${Date.now()}`,
+        session.teacher_id,
+        `Session Cancelled - Credits Decreased (-${teacherNetPenalty.toFixed(2)} Cr)`,
+        `You cancelled the session after ${safeMinutesTaught} mins. Credits decreased by ${teacherNetPenalty.toFixed(2)} Time Credits for the ${cancelledMinutes} mins unfulfilled time.`,
+        now
+      );
+
+      db.prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+        VALUES (?, ?, ?, ?, 'SESSION', 0, '/sessions', ?)
+      `).run(
+        `notif-cnc-l-${Date.now()}`,
+        session.learner_id,
+        `Session Cancelled Early by Teacher`,
+        `Teacher ${session.teacher_name} cancelled after ${safeMinutesTaught} mins. Charged only ${proratedCreditsTaught.toFixed(2)} Cr for ${safeMinutesTaught} mins. Unfulfilled time cancelled. Reason: ${cancellationReason}`,
+        now
+      );
+
+    } else {
+      // LEARNER CANCELS MID-SESSION:
+      // Learner stopped early after safeMinutesTaught (e.g. 15 min = 0.25 Cr).
+      // Teacher blocked totalDuration. Learner cancelled remaining cancelledMinutes (e.g. 45 min = 0.75 Cr).
+      // Total deduction on Learner who cancelled = proratedCreditsTaught + cancellationDeduction (1.00 Cr total deduction).
+      // Teacher receives compensation for the booked hour.
+      const totalLearnerDeduction = proratedCreditsTaught + cancellationDeduction;
+
+      db.prepare(`
+        UPDATE wallets 
+        SET balance = balance - ?, total_spent = total_spent + ?, updated_at = ?
+        WHERE user_id = ?
+      `).run(totalLearnerDeduction, totalLearnerDeduction, now, session.learner_id);
+
+      db.prepare(`
+        UPDATE wallets 
+        SET balance = balance + ?, total_earned = total_earned + ?, updated_at = ?
+        WHERE user_id = ?
+      `).run(totalLearnerDeduction, totalLearnerDeduction, now, session.teacher_id);
+
+      cancellingUserNewBalance = session.learner_balance - totalLearnerDeduction;
+      counterpartyNewBalance = session.teacher_balance + totalLearnerDeduction;
+
+      // Immutable audit transaction
+      db.prepare(`
+        INSERT INTO transactions (id, transaction_id, session_id, teacher_id, learner_id, credit_amount, transaction_type, status, description, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'SESSION_CANCELLATION', 'COMPLETED', ?, ?)
+      `).run(
+        `tx-${Date.now()}`,
+        txUniqueId,
+        sessionId,
+        session.teacher_id,
+        session.learner_id,
+        totalLearnerDeduction,
+        `Session cancelled by Learner after ${safeMinutesTaught}/${totalDuration} mins. Learner deducted -${totalLearnerDeduction.toFixed(2)} Time Credits (${proratedCreditsTaught.toFixed(2)} Cr taught + ${cancellationDeduction.toFixed(2)} Cr for ${cancelledMinutes} mins cancelled). Reason: ${cancellationReason}`,
+        now
+      );
+
+      // Realtime notifications
+      db.prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+        VALUES (?, ?, ?, ?, 'SESSION', 0, '/wallet', ?)
+      `).run(
+        `notif-cnc-l-${Date.now()}`,
+        session.learner_id,
+        `Session Cancelled - Credits Decreased (-${totalLearnerDeduction.toFixed(2)} Cr)`,
+        `You cancelled the session after ${safeMinutesTaught} mins. Credits decreased by ${totalLearnerDeduction.toFixed(2)} Time Credits (${proratedCreditsTaught.toFixed(2)} Cr for time taught + ${cancellationDeduction.toFixed(2)} Cr for ${cancelledMinutes} mins cancelled slot).`,
+        now
+      );
+
+      db.prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+        VALUES (?, ?, ?, ?, 'SESSION', 0, '/sessions', ?)
+      `).run(
+        `notif-cnc-t-${Date.now()}`,
+        session.teacher_id,
+        `Session Cancelled by Learner (Compensated +${totalLearnerDeduction.toFixed(2)} Cr)`,
+        `Learner ${session.learner_name} cancelled after ${safeMinutesTaught} mins. You were compensated ${totalLearnerDeduction.toFixed(2)} Time Credits for your reserved time. Reason: ${cancellationReason}`,
+        now
+      );
+    }
+
+    // Update sessions table record
+    db.prepare(`
+      UPDATE sessions 
+      SET status = 'CANCELLED',
+          cancelled_by = ?,
+          cancellation_reason = ?,
+          cancellation_time = ?,
+          actual_duration = ?,
+          cancellation_deduction = ?
+      WHERE id = ?
+    `).run(
+      cancellingUserId,
+      cancellationReason || 'Session cancelled early',
+      now,
+      safeMinutesTaught,
+      cancellationDeduction,
+      sessionId
+    );
+
+    return {
+      txUniqueId,
+      cancellingUserNewBalance,
+      counterpartyNewBalance,
+    };
+  });
+
+  try {
+    const res = cancelTx();
+    return {
+      success: true,
+      message: `Session cancelled successfully. Credits decreased on cancelling user according to ${cancelledMinutes} mins cancelled time.`,
+      transactionId: res.txUniqueId,
+      actualMinutesTaught: safeMinutesTaught,
+      cancelledMinutes,
+      proratedCreditsTaught,
+      cancellationDeduction,
+      cancellingRole: isTeacher ? 'TEACHER' : 'LEARNER',
+      cancellingUserNewBalance: res.cancellingUserNewBalance,
+      counterpartyNewBalance: res.counterpartyNewBalance,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: `Cancellation failed and was rolled back: ${error.message}`
+    };
+  }
+}
