@@ -91,6 +91,48 @@ node scripts/test-auth-keys.js
 
 ---
 
+## 🚢 Deployment Guide
+
+### Option 1: Render (Recommended for SQLite Persistence) 🌟
+Render provides continuous deployment directly connected to your GitHub repository with persistent storage disks:
+1. Create a free account at [render.com](https://render.com).
+2. Click **New +** → **Blueprint** or **Web Service**.
+3. Connect your GitHub repository: `https://github.com/ghk2604/TimeBank-of-India`.
+4. Render automatically reads [`render.yaml`](file:///Users/harikrishna/.gemini/antigravity/scratch/timebank-india/render.yaml) and configures:
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+   - **Disk**: 1GB mounted at `/opt/render/project/src/data` (preserves your SQLite database across deploys).
+5. Click **Apply / Deploy**. Your live URL will be ready in ~2 minutes!
+
+### Option 2: Vercel (1-Click Next.js Deployment) ⚡
+1. Go to [vercel.com](https://vercel.com) and click **Add New Project**.
+2. Import `https://github.com/ghk2604/TimeBank-of-India`.
+3. Framework Preset: **Next.js** (auto-detected).
+4. Click **Deploy**. Vercel will build and assign a free `.vercel.app` production domain.
+
+### Option 3: Railway 🚂
+1. Go to [railway.app](https://railway.app) and select **New Project** → **Deploy from GitHub repo**.
+2. Select `TimeBank-of-India`.
+3. Add a persistent volume mounted to `/app/data`.
+4. Railway will automatically build and deploy the application.
+
+### Option 4: Docker & Docker Compose (Self-Hosted / VPS) 🐳
+For AWS EC2, DigitalOcean Droplet, Linode, or any Linux VPS:
+```bash
+# Clone the repository
+git clone https://github.com/ghk2604/TimeBank-of-India.git
+cd TimeBank-of-India
+
+# Build and start the container with persistent data volume
+docker compose up -d --build
+
+# View logs
+docker compose logs -f
+```
+Your application will be live on `http://<your-server-ip>:3000`.
+
+---
+
 ## 📜 License
 
 MIT License. Dedicated to the learners and educators of Bharat 🇮🇳.
