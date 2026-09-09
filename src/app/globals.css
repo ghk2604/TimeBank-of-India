@@ -45,3 +45,23 @@ body {
 .dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }
+
+/* Google Meet Emoji Reaction Floating Animation */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.8);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-90px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-180px) scale(1);
+  }
+}
+
+.animate-float-up {
+  animation: float-up 2.8s ease-out forwards;
+}

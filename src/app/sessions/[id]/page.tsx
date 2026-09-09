@@ -9,6 +9,7 @@ import {
   XCircle, AlertCircle, Calendar
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import InteractiveMeetCall from '@/components/InteractiveMeetCall';
 
 export default function LiveSessionRoomPage() {
   const params = useParams();
@@ -21,10 +22,6 @@ export default function LiveSessionRoomPage() {
   const [dispute, setDispute] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Classroom media states
-  const [micOn, setMicOn] = useState(true);
-  const [videoOn, setVideoOn] = useState(true);
-  const [screenSharing, setScreenSharing] = useState(false);
   const [notes, setNotes] = useState('• Session initialized.\n• Reviewing Learning Goal Contract objectives.\n• Live code architecture walkthrough.');
   const [timerSeconds, setTimerSeconds] = useState(3600);
   const [timerActive, setTimerActive] = useState(true);
@@ -492,106 +489,20 @@ export default function LiveSessionRoomPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT 2 COLS: VIDEO / CODE SCREEN SIMULATION */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative aspect-video rounded-3xl bg-slate-950 text-white overflow-hidden shadow-2xl flex flex-col justify-between p-6 border border-slate-800">
-            {/* Top Video Overlay */}
-            <div className="flex items-center justify-between z-10">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur text-xs font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                <span>Encrypted P2P Learning Session (WebRTC)</span>
-              </div>
-              <span className="text-xs text-slate-400 font-mono">1080p HD</span>
-            </div>
-
-            {/* Simulated Video Feeds */}
-            <div className="flex-1 flex items-center justify-center my-4 relative">
-              {videoOn ? (
-                <div className="text-center space-y-3">
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl bg-gradient-to-br from-orange-500 to-green-600 p-1 mx-auto shadow-2xl">
-                    <img
-                      src={counterpartyAvatar}
-                      alt={counterpartyName}
-                      className="w-full h-full rounded-[22px] object-cover"
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold">{counterpartyName}</h3>
-                    <p className="text-xs text-slate-400">
-                      {isTeacher ? 'Learner (Active)' : 'Verified Instructor (Active)'}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-slate-500 text-xs">Video is paused</div>
-              )}
-
-              {/* Self view pip */}
-              <div className="absolute bottom-2 right-2 w-24 h-20 rounded-2xl bg-slate-800 border-2 border-slate-700 overflow-hidden shadow-lg flex items-center justify-center">
-                <img 
-                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces'} 
-                  alt={currentUser?.fullName || 'User'} 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-            </div>
-
-            {/* Bottom Controls Toolbar */}
-            <div className="flex items-center justify-center gap-3 z-10 pt-2 border-t border-white/10">
-              <button
-                onClick={() => setMicOn(!micOn)}
-                className={`p-3 rounded-2xl transition-all ${
-                  micOn ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-rose-600 text-white'
-                }`}
-                title={micOn ? 'Mute Mic' : 'Unmute Mic'}
-              >
-                {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-              </button>
-
-              <button
-                onClick={() => setVideoOn(!videoOn)}
-                className={`p-3 rounded-2xl transition-all ${
-                  videoOn ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-rose-600 text-white'
-                }`}
-                title={videoOn ? 'Turn Off Camera' : 'Turn On Camera'}
-              >
-                {videoOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-              </button>
-
-              <button
-                onClick={() => setScreenSharing(!screenSharing)}
-                className={`p-3 rounded-2xl transition-all ${
-                  screenSharing ? 'bg-blue-600 text-white' : 'bg-slate-800 text-white hover:bg-slate-700'
-                }`}
-                title="Share Screen"
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
-
-              <button
-                onClick={() => setDisputeModalOpen(true)}
-                className="px-3.5 py-2.5 rounded-2xl bg-slate-800 hover:bg-rose-950 text-rose-400 text-xs font-bold flex items-center gap-1.5"
-                title="Raise Dispute"
-              >
-                <ShieldAlert className="w-4 h-4" />
-                <span className="hidden sm:inline">Dispute</span>
-              </button>
-
-              {(session.status === 'SCHEDULED' || session.status === 'IN_PROGRESS') && (
-                <button
-                  onClick={() => {
-                    const totalMins = Number(session?.duration || 60);
-                    const autoMins = Math.max(0, Math.min(totalMins, Math.round(((totalMins * 60) - timerSeconds) / 60)));
-                    setActualMinutesTaughtInput(autoMins || 15);
-                    setCancelModalOpen(true);
-                  }}
-                  className="px-3.5 py-2.5 rounded-2xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors border border-rose-800 cursor-pointer"
-                  title="Cancel session early with credit adjustment"
-                >
-                  <XCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">Cancel Session</span>
-                </button>
-              )}
-            </div>
-          </div>
+          {/* GOOGLE MEET STYLE INTERACTIVE AUDIO & VIDEO CLASSROOM */}
+          <InteractiveMeetCall
+            session={session}
+            currentUser={currentUser}
+            timerSeconds={timerSeconds}
+            timerActive={timerActive}
+            onCancelSession={() => {
+              const totalMins = Number(session?.duration || 60);
+              const autoMins = Math.max(0, Math.min(totalMins, Math.round(((totalMins * 60) - timerSeconds) / 60)));
+              setActualMinutesTaughtInput(autoMins || 15);
+              setCancelModalOpen(true);
+            }}
+            onRaiseDispute={() => setDisputeModalOpen(true)}
+          />
 
           {/* Shared Session Notes Editor */}
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm space-y-2">
