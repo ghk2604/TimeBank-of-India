@@ -134,6 +134,36 @@ export async function PUT(
         message: cancellationResult.message,
         cancellationResult,
       });
+    } else if (action === 'RESCHEDULE_SESSION') {
+      const { newStartTime, newDate, newTime, userId } = body;
+      const scheduledTime = newStartTime || (newDate && newTime ? `${newDate} ${newTime}` : new Date().toISOString());
+
+      db.prepare(`
+        UPDATE sessions 
+        SET start_time = ?,
+            end_time = ?,
+            status = 'SCHEDULED'
+        WHERE id = ?
+      `).run(scheduledTime, scheduledTime, sessionId);
+
+      // Create notification for the other participant
+      const counterpartyId = session.teacher_id === userId ? session.learner_id : session.teacher_id;
+      db.prepare(`
+        INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+        VALUES (?, ?, 'Session Rescheduled 📅', ?, 'SESSION', 0, ?, ?)
+      `).run(
+        `notif-${Date.now()}`,
+        counterpartyId,
+        `Your session for "${session.learning_goal}" has been rescheduled to ${scheduledTime}.`,
+        `/sessions/${sessionId}`,
+        new Date().toISOString()
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: `Session timing successfully updated to ${scheduledTime}`,
+        newStartTime: scheduledTime,
+      });
     } else {
       return NextResponse.json({ error: 'Invalid session action' }, { status: 400 });
     }

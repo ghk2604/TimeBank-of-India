@@ -502,6 +502,7 @@ export default function LiveSessionRoomPage() {
               setCancelModalOpen(true);
             }}
             onRaiseDispute={() => setDisputeModalOpen(true)}
+            onSessionUpdated={loadSession}
           />
 
           {/* Shared Session Notes Editor */}

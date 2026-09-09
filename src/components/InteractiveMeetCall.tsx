@@ -5,7 +5,8 @@ import {
   Video, VideoOff, Mic, MicOff, Share2, Hand, Smile, 
   MessageSquare, Maximize2, Minimize2, Grid, Layout,
   ShieldAlert, XCircle, CheckCircle2, Radio, Send, X,
-  AlertCircle, MonitorUp
+  AlertCircle, MonitorUp, Calendar, Clock, Sparkles, RefreshCw,
+  Lock, Unlock
 } from 'lucide-react';
 import { CurrentUser } from '@/context/AppContext';
 
@@ -16,6 +17,7 @@ interface InteractiveMeetCallProps {
   timerActive: boolean;
   onCancelSession: () => void;
   onRaiseDispute: () => void;
+  onSessionUpdated?: () => void;
 }
 
 interface ChatMessage {
@@ -42,6 +44,38 @@ const RTC_CONFIG: RTCConfiguration = {
   ],
 };
 
+export function parseSessionStartTime(startTimeStr: string | null | undefined): Date {
+  if (!startTimeStr) return new Date();
+  
+  const directDate = new Date(startTimeStr);
+  if (!isNaN(directDate.getTime())) {
+    return directDate;
+  }
+
+  const now = new Date();
+  const lower = startTimeStr.toLowerCase();
+  let targetDate = new Date(now);
+
+  if (lower.includes('tomorrow')) {
+    targetDate.setDate(targetDate.getDate() + 1);
+  }
+
+  const timeMatch = startTimeStr.match(/(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const meridian = timeMatch[3]?.toUpperCase();
+
+    if (meridian === 'PM' && hours < 12) hours += 12;
+    if (meridian === 'AM' && hours === 12) hours = 0;
+
+    targetDate.setHours(hours, minutes, 0, 0);
+    return targetDate;
+  }
+
+  return now;
+}
+
 export default function InteractiveMeetCall({
   session,
   currentUser,
@@ -49,12 +83,53 @@ export default function InteractiveMeetCall({
   timerActive,
   onCancelSession,
   onRaiseDispute,
+  onSessionUpdated,
 }: InteractiveMeetCallProps) {
   const isTeacher = currentUser?.id === session?.teacher_id;
   const counterpartyName = isTeacher ? session?.learner_name : session?.teacher_name;
   const counterpartyAvatar = isTeacher ? session?.learner_avatar : session?.teacher_avatar;
   const counterpartyRole = isTeacher ? 'Learner / Student' : 'Verified Instructor';
   const myRole = isTeacher ? 'Instructor (You)' : 'Learner (You)';
+
+  // Current live clock
+  const [now, setNow] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Time matching & Gating
+  const scheduledStartDate = parseSessionStartTime(session?.start_time);
+  const durationMinutes = Number(session?.duration || 60);
+  const scheduledEndDate = new Date(scheduledStartDate.getTime() + durationMinutes * 60 * 1000);
+
+  // Time calculations (allow joining 5 minutes prior to start time, and up to 30 mins after end time)
+  const startWindowMs = scheduledStartDate.getTime() - 5 * 60 * 1000;
+  const endWindowMs = scheduledEndDate.getTime() + 30 * 60 * 1000;
+  const nowMs = now.getTime();
+
+  // A session is time-active if:
+  // 1. Session status is explicitly IN_PROGRESS, OR
+  // 2. Present time is within the start/end window AND session status is SCHEDULED
+  const isTimeActive = 
+    session?.status === 'IN_PROGRESS' || 
+    (session?.status === 'SCHEDULED' && nowMs >= startWindowMs && nowMs <= endWindowMs);
+
+  const isUpcoming = session?.status === 'SCHEDULED' && nowMs < startWindowMs;
+  const secondsUntilStart = Math.max(0, Math.floor((scheduledStartDate.getTime() - nowMs) / 1000));
+
+  // Reschedule Modal State
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+  const [rescheduleTime, setRescheduleTime] = useState(() => {
+    const d = new Date();
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  });
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
 
   // Media states
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -121,14 +196,12 @@ export default function InteractiveMeetCall({
       timestamp: Date.now(),
     };
 
-    // 1. BroadcastChannel (0ms local cross-tab)
     if (channelRef.current) {
       try {
         channelRef.current.postMessage(data);
       } catch (e) {}
     }
 
-    // 2. Server API fallback for cross-device
     if (session?.id) {
       try {
         fetch(`/api/sessions/${session.id}/signal`, {
@@ -151,7 +224,6 @@ export default function InteractiveMeetCall({
     const { type, payload, fromUserName } = msg;
 
     if (type === 'USER_JOINED') {
-      // If we are teacher (initiator), create WebRTC offer
       if (isTeacher && pcRef.current && localStream) {
         try {
           const offer = await pcRef.current.createOffer();
@@ -196,14 +268,15 @@ export default function InteractiveMeetCall({
       if (!chatDrawerOpen) {
         setUnreadChatCount((prev) => prev + 1);
       }
+    } else if (type === 'SESSION_RESCHEDULED') {
+      if (onSessionUpdated) onSessionUpdated();
     }
-  }, [currentUser?.id, isTeacher, localStream, sendSignal, counterpartyName, chatDrawerOpen]);
+  }, [currentUser?.id, isTeacher, localStream, sendSignal, counterpartyName, chatDrawerOpen, onSessionUpdated]);
 
   // Setup BroadcastChannel & Remote Polling
   useEffect(() => {
     if (!session?.id) return;
 
-    // BroadcastChannel for instant local testing between 2 tabs
     const channelName = `tbi_meet_${session.id}`;
     const channel = new BroadcastChannel(channelName);
     channelRef.current = channel;
@@ -212,7 +285,6 @@ export default function InteractiveMeetCall({
       handleIncomingSignal(event.data);
     };
 
-    // Remote Polling interval for cross-machine signaling
     const pollInterval = setInterval(async () => {
       try {
         const res = await fetch(
@@ -244,7 +316,6 @@ export default function InteractiveMeetCall({
     setPermissionError(null);
 
     try {
-      // 1. Get User Media (Camera & Mic)
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -252,7 +323,6 @@ export default function InteractiveMeetCall({
           audio: { echoCancellation: true, noiseSuppression: true },
         });
       } catch (camErr: any) {
-        // Fallback to audio-only if camera is not available / denied
         console.warn('Camera failed, attempting audio only:', camErr);
         stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true },
@@ -265,26 +335,21 @@ export default function InteractiveMeetCall({
         localVideoRef.current.srcObject = stream;
       }
 
-      // 2. Setup Audio Visualizer
       setupAudioAnalyser(stream);
 
-      // 3. Initialize RTCPeerConnection
       const pc = new RTCPeerConnection(RTC_CONFIG);
       pcRef.current = pc;
 
-      // Add local tracks to peer connection
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
 
-      // Handle ICE Candidates
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           sendSignal('CANDIDATE', e.candidate);
         }
       };
 
-      // Handle incoming remote tracks
       pc.ontrack = (e) => {
         if (e.streams && e.streams[0]) {
           setRemoteStream(e.streams[0]);
@@ -294,13 +359,8 @@ export default function InteractiveMeetCall({
         }
       };
 
-      pc.onconnectionstatechange = () => {
-        console.log('WebRTC Connection State:', pc.connectionState);
-      };
-
       setCallJoined(true);
 
-      // Notify counterparty that user has joined call
       sendSignal('USER_JOINED', {
         role: isTeacher ? 'TEACHER' : 'LEARNER',
       });
@@ -310,14 +370,12 @@ export default function InteractiveMeetCall({
       setPermissionError(
         'Could not access camera or microphone. Please ensure permissions are granted in your browser settings.'
       );
-      // Still allow entering interactive room with audio visualizer / mock
       setCallJoined(true);
     } finally {
       setIsConnecting(false);
     }
   };
 
-  // Web Audio API to detect voice activity
   const setupAudioAnalyser = (stream: MediaStream) => {
     try {
       const audioTrack = stream.getAudioTracks()[0];
@@ -345,7 +403,7 @@ export default function InteractiveMeetCall({
           sum += dataArray[i];
         }
         const avg = sum / bufferLength;
-        const speaking = avg > 25; // threshold
+        const speaking = avg > 25;
         setIsLocalSpeaking(speaking);
         sendSignal('SPEAKING_STATE', { isSpeaking: speaking });
 
@@ -358,7 +416,6 @@ export default function InteractiveMeetCall({
     }
   };
 
-  // Clean up streams on unmount
   useEffect(() => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -369,7 +426,6 @@ export default function InteractiveMeetCall({
     };
   }, [localStream, screenStream]);
 
-  // Keep video refs attached if streams change
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
@@ -383,7 +439,7 @@ export default function InteractiveMeetCall({
   }, [remoteStream]);
 
   // --------------------------------------------------------------------------
-  // 3. MEDIA CONTROLS (MIC, CAMERA, SCREEN SHARE)
+  // 3. MEDIA CONTROLS
   // --------------------------------------------------------------------------
   const toggleMic = () => {
     const nextState = !micOn;
@@ -420,7 +476,6 @@ export default function InteractiveMeetCall({
           screenVideoRef.current.srcObject = stream;
         }
 
-        // Replace video track in RTCPeerConnection
         if (pcRef.current) {
           const videoTrack = stream.getVideoTracks()[0];
           const sender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
@@ -449,7 +504,6 @@ export default function InteractiveMeetCall({
     setScreenStream(null);
     setScreenSharing(false);
 
-    // Restore camera track in RTCPeerConnection
     if (pcRef.current && localStream) {
       const cameraTrack = localStream.getVideoTracks()[0];
       const sender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
@@ -472,7 +526,7 @@ export default function InteractiveMeetCall({
 
   const triggerReaction = (emoji: string, sender: string) => {
     const id = `${Date.now()}_${Math.random()}`;
-    const x = 20 + Math.random() * 60; // Random horizontal placement (20% - 80%)
+    const x = 20 + Math.random() * 60;
     setReactions((prev) => [...prev, { id, emoji, x, senderName: sender }]);
 
     setTimeout(() => {
@@ -521,8 +575,64 @@ export default function InteractiveMeetCall({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const formatCountdown = (totalSec: number) => {
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+
+    if (days > 0) return `${days}d ${hours}h ${mins}m ${secs}s`;
+    if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+  };
+
   // --------------------------------------------------------------------------
-  // 5. RENDER INTERACTION
+  // 5. RESCHEDULE TIMING ACTION
+  // --------------------------------------------------------------------------
+  const handleRescheduleSubmit = async (customStartTime?: string) => {
+    setIsRescheduling(true);
+    setRescheduleSuccessMsg(null);
+
+    const targetTime = customStartTime || `${rescheduleDate} ${rescheduleTime}`;
+
+    try {
+      const res = await fetch(`/api/sessions/${session.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'RESCHEDULE_SESSION',
+          newStartTime: targetTime,
+          userId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setRescheduleSuccessMsg(data.message);
+        sendSignal('SESSION_RESCHEDULED', { newStartTime: targetTime });
+        if (onSessionUpdated) onSessionUpdated();
+        setTimeout(() => {
+          setRescheduleModalOpen(false);
+          setRescheduleSuccessMsg(null);
+        }, 1500);
+      } else {
+        alert(data.error || 'Failed to update schedule');
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsRescheduling(false);
+    }
+  };
+
+  // Set schedule to Right Now so interaction unlocks immediately
+  const handleStartImmediately = () => {
+    const currentNowStr = new Date().toISOString();
+    handleRescheduleSubmit(currentNowStr);
+  };
+
+  // --------------------------------------------------------------------------
+  // 6. RENDER
   // --------------------------------------------------------------------------
   return (
     <div
@@ -531,7 +641,7 @@ export default function InteractiveMeetCall({
         isFullScreen ? 'fixed inset-0 z-50 rounded-none w-screen h-screen' : 'aspect-[16/10] sm:aspect-video w-full'
       }`}
     >
-      {/* FLOATING EMOJI REACTIONS ANIMATION (Google Meet Style) */}
+      {/* FLOATING EMOJI REACTIONS ANIMATION */}
       <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
         {reactions.map((r) => (
           <div
@@ -547,33 +657,45 @@ export default function InteractiveMeetCall({
 
       {/* TOP STATUS OVERLAY BAR */}
       <div className="absolute top-0 left-0 right-0 p-4 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-auto">
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 backdrop-blur border border-slate-700/80 shadow-sm text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className={`w-2 h-2 rounded-full ${isTimeActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
             <span className="hidden sm:inline">Google Meet 1-on-1 •</span>
-            <span className="text-orange-400 font-bold">{session?.skill_name || 'Learning Session'}</span>
+            <span className="text-orange-400 font-bold truncate max-w-[140px] sm:max-w-none">{session?.skill_name || 'Learning Session'}</span>
           </div>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/80 backdrop-blur border border-slate-700/80 text-xs font-mono text-slate-300">
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <Radio className={`w-3.5 h-3.5 ${isTimeActive ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
             <span>{formatTimer(timerSeconds)}</span>
           </div>
         </div>
 
-        {/* View Layout Controls & Fullscreen */}
+        {/* Change Time & View Layout Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Change Date & Time Button */}
           <button
-            onClick={() => setViewMode(viewMode === 'spotlight' ? 'grid' : 'spotlight')}
-            className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1 border border-slate-700"
-            title={viewMode === 'spotlight' ? 'Switch to Grid View' : 'Switch to Spotlight'}
+            onClick={() => setRescheduleModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Change allotted date and time of this session"
           >
-            {viewMode === 'spotlight' ? <Grid className="w-3.5 h-3.5" /> : <Layout className="w-3.5 h-3.5" />}
-            <span className="hidden md:inline text-[11px]">{viewMode === 'spotlight' ? 'Grid' : 'Spotlight'}</span>
+            <Calendar className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Change Time</span>
           </button>
+
+          {isTimeActive && (
+            <button
+              onClick={() => setViewMode(viewMode === 'spotlight' ? 'grid' : 'spotlight')}
+              className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1 border border-slate-700 cursor-pointer"
+              title={viewMode === 'spotlight' ? 'Switch to Grid View' : 'Switch to Spotlight'}
+            >
+              {viewMode === 'spotlight' ? <Grid className="w-3.5 h-3.5" /> : <Layout className="w-3.5 h-3.5" />}
+              <span className="hidden md:inline text-[11px]">{viewMode === 'spotlight' ? 'Grid' : 'Spotlight'}</span>
+            </button>
+          )}
 
           <button
             onClick={toggleFullScreen}
-            className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-700"
+            className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer"
             title={isFullScreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -581,20 +703,96 @@ export default function InteractiveMeetCall({
         </div>
       </div>
 
-      {/* NOT JOINED SCREEN: LOBBY WITH ONE-CLICK JOIN */}
-      {!callJoined ? (
-        <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center z-10 relative bg-slate-900/90 backdrop-blur">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-orange-500 via-blue-600 to-green-500 p-1 shadow-2xl mb-4 animate-bounce-subtle">
+      {/* ===================================================================== */}
+      {/* CASE 1: TIME HAS NOT ARRIVED YET -> WAITING ROOM & TIMING MATCH GATING */}
+      {/* ===================================================================== */}
+      {isUpcoming && !callJoined ? (
+        <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center z-10 relative bg-slate-950/95 backdrop-blur">
+          {/* Animated Lock Icon */}
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 via-orange-600 to-rose-500 p-1 shadow-2xl mb-4 relative">
             <div className="w-full h-full rounded-[22px] bg-slate-950 flex items-center justify-center">
-              <Video className="w-8 h-8 text-orange-400" />
+              <Lock className="w-8 h-8 text-amber-400 animate-pulse" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center">
+              ⏱️
             </div>
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight mb-1">
-            TimeBank Meet Classroom 🇮🇳
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-3">
+            <Clock className="w-3.5 h-3.5" />
+            <span>Scheduled Waiting Room • Time Gated</span>
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight mb-2 text-white">
+            Session Unlocks at Allotted Time
+          </h2>
+
+          <p className="text-xs sm:text-sm text-slate-300 max-w-lg mb-6 leading-relaxed">
+            Per platform rules, interaction is available only when the allotted schedule matches the present time.
+            Both <strong>{currentUser?.fullName}</strong> and <strong>{counterpartyName}</strong> can speak & video call as soon as the room opens.
+          </p>
+
+          {/* Live Countdown & Timing Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md w-full mb-6 text-left">
+            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Allotted Session Time</span>
+              <p className="text-xs font-bold text-orange-400 truncate">
+                📅 {session?.start_time || 'Scheduled Time'}
+              </p>
+              <p className="text-[10px] text-slate-500">Duration: {durationMinutes} Mins</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Unlocks In (Countdown)</span>
+              <p className="text-base font-black text-emerald-400 font-mono">
+                {formatCountdown(secondsUntilStart)}
+              </p>
+              <p className="text-[10px] text-slate-500">Present: {now.toLocaleTimeString()}</p>
+            </div>
+          </div>
+
+          {/* Action Buttons: Change Timing OR Set to Right Now */}
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              onClick={() => setRescheduleModalOpen(true)}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 shadow-md flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-orange-400" />
+              <span>Change Allotted Date & Time</span>
+            </button>
+
+            <button
+              onClick={handleStartImmediately}
+              disabled={isRescheduling}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-xs shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              title="Change schedule to right now to interact immediately"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isRescheduling ? 'Updating Schedule...' : '⚡ Match Present Time & Start Now'}</span>
+            </button>
+          </div>
+        </div>
+      ) : !callJoined ? (
+        /* ===================================================================== */
+        /* CASE 2: ALLOTTED TIME MATCHES PRESENT TIME -> READY TO JOIN MEET      */
+        /* ===================================================================== */
+        <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center z-10 relative bg-slate-900/90 backdrop-blur">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-500 via-green-600 to-teal-500 p-1 shadow-2xl mb-4 animate-bounce-subtle">
+            <div className="w-full h-full rounded-[22px] bg-slate-950 flex items-center justify-center">
+              <Unlock className="w-8 h-8 text-emerald-400" />
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold mb-3">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Allotted Time Active • Classroom Unlocked</span>
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight mb-1 text-white">
+            TimeBank Meet Classroom Active 🇮🇳
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 max-w-md mb-6 leading-relaxed">
-            Ready to interact with <strong>{counterpartyName}</strong> ({counterpartyRole}) using high-definition 2-way audio, video, and screen sharing.
+            The scheduled session window has arrived! Connect with <strong>{counterpartyName}</strong> ({counterpartyRole}) to begin 2-way speaking and video call.
           </p>
 
           {permissionError && (
@@ -624,11 +822,12 @@ export default function InteractiveMeetCall({
           </div>
         </div>
       ) : (
-        /* ACTIVE CALL SCREEN: GOOGLE MEET LAYOUT */
+        /* ===================================================================== */
+        /* CASE 3: ACTIVE GOOGLE MEET CALL                                       */
+        /* ===================================================================== */
         <div className="w-full h-full flex flex-col justify-between relative pt-14 pb-20 px-4">
           {/* VIDEO STAGE CONTAINER */}
           <div className="flex-1 w-full relative flex items-center justify-center overflow-hidden">
-            {/* VIEW MODE: SCREEN SHARE ACTIVE */}
             {screenSharing && screenStream ? (
               <div className="w-full h-full rounded-2xl bg-black border border-slate-800 overflow-hidden relative flex items-center justify-center">
                 <video
@@ -644,9 +843,8 @@ export default function InteractiveMeetCall({
                 </div>
               </div>
             ) : viewMode === 'grid' ? (
-              /* VIEW MODE: 50/50 EQUAL GRID */
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full h-full max-h-full">
-                {/* TILE 1: COUNTERPARTY (TEACHER OR LEARNER) */}
+                {/* TILE 1: COUNTERPARTY */}
                 <div
                   className={`relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden flex items-center justify-center transition-all ${
                     isRemoteSpeaking ? 'ring-4 ring-emerald-500/80 shadow-lg shadow-emerald-500/20' : ''
@@ -672,7 +870,6 @@ export default function InteractiveMeetCall({
                     </div>
                   )}
 
-                  {/* Tile Badge */}
                   <div className="absolute bottom-3 left-3 flex items-center gap-2 z-10">
                     <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur text-[11px] font-bold text-white flex items-center gap-1.5">
                       <span>{counterpartyName}</span>
@@ -718,7 +915,6 @@ export default function InteractiveMeetCall({
                     </div>
                   )}
 
-                  {/* Tile Badge */}
                   <div className="absolute bottom-3 left-3 flex items-center gap-2 z-10">
                     <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur text-[11px] font-bold text-white flex items-center gap-1.5">
                       <span>You</span>
@@ -738,9 +934,8 @@ export default function InteractiveMeetCall({
                 </div>
               </div>
             ) : (
-              /* VIEW MODE: SPOTLIGHT WITH PICTURE-IN-PICTURE (Default Google Meet style) */
+              /* VIEW MODE: SPOTLIGHT WITH PiP */
               <div className="w-full h-full relative rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden flex items-center justify-center">
-                {/* PRIMARY VIEW: COUNTERPARTY */}
                 <video
                   ref={remoteVideoRef}
                   autoPlay
@@ -763,7 +958,6 @@ export default function InteractiveMeetCall({
                   </div>
                 )}
 
-                {/* Counterparty Overlay Tag */}
                 <div className="absolute bottom-4 left-4 flex items-center gap-2 z-10">
                   <span className="px-3 py-1.5 rounded-xl bg-black/75 backdrop-blur text-xs font-bold text-white flex items-center gap-2">
                     <span>{counterpartyName}</span>
@@ -781,7 +975,7 @@ export default function InteractiveMeetCall({
                   )}
                 </div>
 
-                {/* SELF VIEW PiP (Picture in Picture - Floating Tile) */}
+                {/* SELF PiP */}
                 <div
                   className={`absolute bottom-4 right-4 w-36 h-28 sm:w-48 sm:h-36 rounded-2xl bg-slate-950 border-2 border-slate-700 overflow-hidden shadow-2xl z-20 transition-all ${
                     isLocalSpeaking ? 'ring-4 ring-emerald-500/80' : ''
@@ -820,7 +1014,7 @@ export default function InteractiveMeetCall({
             )}
           </div>
 
-          {/* GOOGLE MEET FLOATING CONTROL PILL BAR */}
+          {/* GOOGLE MEET FLOATING CONTROL BAR */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 sm:gap-3 px-4 py-2.5 rounded-3xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 shadow-2xl max-w-[95vw] overflow-x-auto">
             {/* Mic Toggle */}
             <button
@@ -830,7 +1024,7 @@ export default function InteractiveMeetCall({
                   ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
                   : 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg'
               }`}
-              title={micOn ? 'Mute Microphone (Cmd+D)' : 'Unmute Microphone'}
+              title={micOn ? 'Mute Microphone' : 'Unmute Microphone'}
             >
               {micOn ? <Mic className="w-4 h-4 sm:w-5 sm:h-5" /> : <MicOff className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
@@ -843,7 +1037,7 @@ export default function InteractiveMeetCall({
                   ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
                   : 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg'
               }`}
-              title={videoOn ? 'Turn Off Camera (Cmd+E)' : 'Turn On Camera'}
+              title={videoOn ? 'Turn Off Camera' : 'Turn On Camera'}
             >
               {videoOn ? <Video className="w-4 h-4 sm:w-5 sm:h-5" /> : <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
@@ -874,7 +1068,7 @@ export default function InteractiveMeetCall({
               <Hand className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
-            {/* In-Call Reactions Menu */}
+            {/* In-Call Reactions */}
             <div className="relative">
               <button
                 onClick={() => setShowReactionsMenu(!showReactionsMenu)}
@@ -916,7 +1110,7 @@ export default function InteractiveMeetCall({
               )}
             </button>
 
-            {/* Dispute Button */}
+            {/* Dispute */}
             <button
               onClick={onRaiseDispute}
               className="p-3 rounded-2xl bg-slate-800 hover:bg-rose-950 text-rose-400 border border-slate-700 transition-all cursor-pointer"
@@ -925,7 +1119,7 @@ export default function InteractiveMeetCall({
               <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
-            {/* Cancel / End Call */}
+            {/* Cancel Session */}
             {(session?.status === 'SCHEDULED' || session?.status === 'IN_PROGRESS') && (
               <button
                 onClick={onCancelSession}
@@ -938,7 +1132,7 @@ export default function InteractiveMeetCall({
             )}
           </div>
 
-          {/* IN-CALL CHAT DRAWER (Slide-Over Panel) */}
+          {/* IN-CALL CHAT DRAWER */}
           {chatDrawerOpen && (
             <div className="absolute top-14 right-4 bottom-20 w-80 max-w-[90vw] rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700 shadow-2xl flex flex-col z-30 animate-in slide-in-from-right duration-200">
               <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
@@ -954,7 +1148,6 @@ export default function InteractiveMeetCall({
                 </button>
               </div>
 
-              {/* Messages Body */}
               <div className="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs">
                 {messages.map((m) => {
                   const isMe = m.senderId === currentUser?.id;
@@ -992,7 +1185,6 @@ export default function InteractiveMeetCall({
                 })}
               </div>
 
-              {/* Chat Input Bar */}
               <form onSubmit={handleSendMessage} className="p-2.5 border-t border-slate-800 flex items-center gap-2">
                 <input
                   type="text"
@@ -1011,6 +1203,147 @@ export default function InteractiveMeetCall({
               </form>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* RESCHEDULE MODAL (Change allotted date & time)                         */}
+      {/* ===================================================================== */}
+      {rescheduleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 dark:text-white space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-orange-500" />
+                <h3 className="font-extrabold text-base">Change Allotted Time</h3>
+              </div>
+              <button
+                onClick={() => setRescheduleModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Adjust the scheduled date and time for this session. The classroom will update and become interactive when the new allotted time matches present time.
+            </p>
+
+            <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+              <span className="font-bold text-slate-400 uppercase text-[10px]">Current Schedule</span>
+              <p className="font-bold text-orange-600 dark:text-orange-400">
+                📅 {session?.start_time || 'Not set'}
+              </p>
+            </div>
+
+            {/* Quick 1-Click Presets */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-400">Quick Presets</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={handleStartImmediately}
+                  className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Right Now (Start)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(Date.now() + 15 * 60 * 1000);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                >
+                  +15 Minutes
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(Date.now() + 60 * 60 * 1000);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                >
+                  +1 Hour
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(Date.now() + 86400000);
+                    setRescheduleDate(d.toISOString().slice(0, 10));
+                    setRescheduleTime('18:00');
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                >
+                  Tomorrow 6:00 PM
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Date & Time Picker */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRescheduleSubmit();
+              }}
+              className="space-y-3 pt-2"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Select Date</label>
+                  <input
+                    type="date"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Select Time</label>
+                  <input
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+              </div>
+
+              {rescheduleSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{rescheduleSuccessMsg}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRescheduling}
+                  className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold shadow-md hover:scale-102 transition-all disabled:opacity-50"
+                >
+                  {isRescheduling ? 'Saving...' : 'Confirm New Time'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
