@@ -34,6 +34,9 @@ function LoginContent() {
   const [regSkillTeach, setRegSkillTeach] = useState('skill-1');
   const [regSkillLearn, setRegSkillLearn] = useState('skill-2');
   const [regAccessKey, setRegAccessKey] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
   const [regLoading, setRegLoading] = useState(false);
 
@@ -90,6 +93,17 @@ function LoginContent() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError(null);
+
+    if (!regPassword || regPassword.trim().length < 6) {
+      setRegError('Password is mandatory and must be at least 6 characters long.');
+      return;
+    }
+
+    if (regPassword !== regConfirmPassword) {
+      setRegError('Passwords do not match. Please ensure both passwords match.');
+      return;
+    }
+
     setRegLoading(true);
 
     try {
@@ -101,6 +115,7 @@ function LoginContent() {
           username: regUsername,
           email: regEmail,
           phone: regPhone,
+          password: regPassword.trim(),
           city: regCity,
           state: regState,
           skillToTeachId: regSkillTeach,
@@ -248,17 +263,21 @@ function LoginContent() {
             </div>
 
             <div>
-              <label className="font-bold text-slate-700 dark:text-slate-300 mb-1 block">Password</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 mb-1 block">Password *</label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                 <input
                   type="password"
+                  required
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                🔑 Demo Persona Accounts Password: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-orange-600 font-bold">India@123</code>
+              </p>
             </div>
 
             <button
@@ -266,7 +285,7 @@ function LoginContent() {
               disabled={loginLoading}
               className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold shadow flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50"
             >
-              <span>{loginLoading ? 'Signing In...' : 'Sign In'}</span>
+              <span>{loginLoading ? 'Signing In...' : 'Sign In with Password'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -274,13 +293,15 @@ function LoginContent() {
           {/* Quick 1-Click Demo Personas */}
           <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
-              Quick 1-Click Persona Sign In
+              Quick 1-Click Persona Sign In (Password Verified)
             </p>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               {DEMO_USERS.map((u) => (
                 <button
                   key={u.id}
                   onClick={() => {
+                    setLoginIdentifier(u.email || u.username);
+                    setLoginPassword('India@123');
                     setCurrentUser(u);
                     refreshUserData();
                     router.push('/dashboard');
@@ -390,6 +411,56 @@ function LoginContent() {
                   className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
+            </div>
+
+            {/* MANDATORY PASSWORD CREATION */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 mb-1 block">
+                  Create Password * <span className="font-normal text-slate-400 text-[10px]">(Min 6 characters)</span>
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    placeholder="Create password"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 mb-1 block">Confirm Password *</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={regConfirmPassword}
+                    onChange={(e) => setRegConfirmPassword(e.target.value)}
+                    placeholder="Re-type password"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="showPasswordReg"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+                className="rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+              />
+              <label htmlFor="showPasswordReg" className="text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                Show password characters
+              </label>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useApp, DEMO_USERS } from '@/context/AppContext';
 import { 
   Coins, Moon, Sun, Globe, User, ShieldAlert, BookOpen, Compass, 
-  Award, Wallet, GitPullRequest, Search, Zap, Layers, Menu, X, CheckCircle2, Key, Bell, Check
+  Award, Wallet, GitPullRequest, Search, Zap, Layers, Menu, X, CheckCircle2, Key, Bell, Check, Eye
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -180,21 +180,20 @@ export default function Navbar() {
                           </div>
 
                           <div className="flex items-center gap-2 pt-1">
-                            <button
-                              onClick={async () => {
-                                await acceptSessionRequest(req.id);
-                                setNotifDropdownOpen(false);
-                              }}
-                              className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
+                            <Link
+                              href="/sessions"
+                              onClick={() => setNotifDropdownOpen(false)}
+                              className="flex-1 py-1.5 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-1 transition-colors"
                             >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Accept Session</span>
-                            </button>
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Check & Review Details</span>
+                            </Link>
                             <button
                               onClick={async () => {
                                 await declineSessionRequest(req.id);
                               }}
                               className="py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-medium transition-colors"
+                              title="Decline Request"
                             >
                               <X className="w-3.5 h-3.5" />
                               <span className="sr-only">Decline</span>

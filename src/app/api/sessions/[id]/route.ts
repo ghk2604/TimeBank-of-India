@@ -55,6 +55,20 @@ export async function PUT(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    if (action === 'START_SESSION') {
+      db.prepare(`
+        UPDATE sessions 
+        SET status = 'IN_PROGRESS'
+        WHERE id = ?
+      `).run(sessionId);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Live session started! Classroom is active.',
+        status: 'IN_PROGRESS',
+      });
+    }
+
     if (action === 'TEACHER_COMPLETE') {
       db.prepare(`
         UPDATE sessions 

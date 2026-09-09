@@ -4,10 +4,11 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { subscribeToRequestEvents } from '@/lib/realtime';
+import RequestReviewModal from '@/components/RequestReviewModal';
 import { 
   Coins, Clock, BookOpen, Award, CheckCircle2, XCircle, AlertTriangle, 
   Flame, PlusCircle, ArrowUpRight, ArrowDownRight, Compass, ShieldCheck, 
-  Check, X, Sparkles, Video, UserCheck
+  Check, X, Sparkles, Video, UserCheck, Eye, Calendar, Play
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -19,6 +20,8 @@ export default function DashboardPage() {
   const [recovery, setRecovery] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [selectedRequestForReview, setSelectedRequestForReview] = useState<any | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   const loadData = async () => {
     try {
@@ -73,24 +76,31 @@ export default function DashboardPage() {
   }, [currentUser.id]);
 
   const handleRequestAction = async (requestId: string, action: 'ACCEPT' | 'REJECT') => {
-    if (action === 'ACCEPT') {
-      const res = await acceptSessionRequest(requestId);
-      if (res.success) {
-        setActionMessage(res.message || 'Session Accepted!');
-        loadData();
-        refreshUserData();
-        setTimeout(() => setActionMessage(null), 4000);
+    try {
+      setIsProcessingAction(true);
+      if (action === 'ACCEPT') {
+        const res = await acceptSessionRequest(requestId);
+        if (res.success) {
+          setSelectedRequestForReview(null);
+          setActionMessage(res.message || 'Session Accepted! Scheduled in Sessions tab.');
+          loadData();
+          refreshUserData();
+          setTimeout(() => setActionMessage(null), 4000);
+        } else {
+          alert(res.error || 'Failed to accept session');
+        }
       } else {
-        alert(res.error || 'Failed to accept session');
+        const res = await declineSessionRequest(requestId);
+        if (res.success) {
+          setSelectedRequestForReview(null);
+          setActionMessage(res.message || 'Session Declined');
+          loadData();
+          refreshUserData();
+          setTimeout(() => setActionMessage(null), 4000);
+        }
       }
-    } else {
-      const res = await declineSessionRequest(requestId);
-      if (res.success) {
-        setActionMessage(res.message || 'Session Declined');
-        loadData();
-        refreshUserData();
-        setTimeout(() => setActionMessage(null), 4000);
-      }
+    } finally {
+      setIsProcessingAction(false);
     }
   };
 
@@ -227,15 +237,15 @@ export default function DashboardPage() {
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleRequestAction(req.id, 'ACCEPT')}
-                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md flex items-center gap-1.5 hover:scale-105 transition-all cursor-pointer"
+                        onClick={() => setSelectedRequestForReview(req)}
+                        className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-black shadow-md flex items-center gap-1.5 hover:scale-105 transition-all cursor-pointer"
                       >
-                        <Check className="w-4 h-4 stroke-[3]" />
-                        <span>Accept Session Now ✓</span>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Check & Review Details</span>
                       </button>
                       <button
                         onClick={() => handleRequestAction(req.id, 'REJECT')}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                         <span>Decline</span>
@@ -515,15 +525,15 @@ export default function DashboardPage() {
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2 mt-1">
                           <button
-                            onClick={() => handleRequestAction(req.id, 'ACCEPT')}
-                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5"
+                            onClick={() => setSelectedRequestForReview(req)}
+                            className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-black shadow-sm flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
                           >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Accept Session</span>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Check & Review Details</span>
                           </button>
                           <button
                             onClick={() => handleRequestAction(req.id, 'REJECT')}
-                            className="px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold"
+                            className="px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
                             <span>Decline</span>
@@ -582,6 +592,16 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Review Request Modal */}
+      <RequestReviewModal
+        request={selectedRequestForReview}
+        isOpen={!!selectedRequestForReview}
+        onClose={() => setSelectedRequestForReview(null)}
+        onAccept={(id) => handleRequestAction(id, 'ACCEPT')}
+        onDecline={(id) => handleRequestAction(id, 'REJECT')}
+        isProcessing={isProcessingAction}
+      />
     </div>
   );
 }

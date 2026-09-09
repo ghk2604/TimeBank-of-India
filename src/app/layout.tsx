@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AppProvider } from '@/context/AppContext';
 import Navbar from '@/components/Navbar';
-import IncomingRequestBanner from '@/components/IncomingRequestBanner';
 import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
@@ -23,7 +22,6 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col antialiased transition-colors duration-200">
         <AppProvider>
           <Navbar />
-          <IncomingRequestBanner />
           <main className="flex-grow">{children}</main>
           <Footer />
         </AppProvider>

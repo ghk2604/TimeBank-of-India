@@ -301,8 +301,8 @@ function seedInitialData() {
 
   // 2. Insert Users
   const insertUser = db.prepare(`
-    INSERT OR IGNORE INTO users (id, full_name, username, email, phone, avatar, bio, city, state, languages, verification_status, reputation_score, trust_level, learning_streak, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO users (id, full_name, username, email, phone, password_hash, avatar, bio, city, state, languages, verification_status, reputation_score, trust_level, learning_streak, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertWallet = db.prepare(`
@@ -400,7 +400,7 @@ function seedInitialData() {
 
   for (const u of users) {
     insertUser.run(
-      u.id, u.fullName, u.username, u.email, u.phone, u.avatar, u.bio,
+      u.id, u.fullName, u.username, u.email, u.phone, 'India@123', u.avatar, u.bio,
       u.city, u.state, u.languages, u.verification, u.reputation, u.trust,
       u.streak, now, now
     );

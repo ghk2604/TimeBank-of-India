@@ -22,6 +22,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Full name, username, and email are required' }, { status: 400 });
     }
 
+    if (!password || password.trim().length < 6) {
+      return NextResponse.json({ error: 'Password is mandatory and must be at least 6 characters long' }, { status: 400 });
+    }
+
     // Check if user exists
     const existing = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
     if (existing) {
@@ -48,12 +52,12 @@ export async function POST(request: Request) {
     const avatar = `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=faces`;
 
     const registerTx = db.transaction(() => {
-      // 1. Create user
+      // 1. Create user with mandatory password_hash
       db.prepare(`
-        INSERT INTO users (id, full_name, username, email, phone, avatar, bio, city, state, languages, verification_status, reputation_score, trust_level, learning_streak, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 75, ?, 1, ?, ?)
+        INSERT INTO users (id, full_name, username, email, phone, password_hash, avatar, bio, city, state, languages, verification_status, reputation_score, trust_level, learning_streak, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 75, ?, 1, ?, ?)
       `).run(
-        userId, fullName, username, email, phone || '+91 99999 00000', avatar,
+        userId, fullName, username, email, phone || '+91 99999 00000', password.trim(), avatar,
         `Eager learner & educator on TimeBank of India from ${city || 'India'}.`,
         city || 'Hyderabad', state || 'Telangana', JSON.stringify(languages || ['English', 'Hindi']),
         verificationStatus, trustLevel, now, now
